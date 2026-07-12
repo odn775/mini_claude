@@ -66,9 +66,9 @@ _KB_INDEX_DIR = os.path.join(os.path.expanduser("~"), ".mini_claude", "faiss_ind
 
 DOG = r"""
         /)_/)
-       (  -w-)  有什么可以帮你的？
-        |   |
-        |   |
+       (  •⩊•)  有什么可以帮你的？
+       /っ   ﾂ
+      /    ﾉﾉ
 """
 
 
