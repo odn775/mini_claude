@@ -123,9 +123,9 @@ class MCPManager:
                 self._connections[name] = conn
                 for tool in conn.tools:
                     all_tool_defs.append(self._to_function_calling(name, tool))
-                print(f"  ✅ MCP [{name}] — {len(conn.tools)} 个工具")
+                print(f"  [OK] MCP [{name}] — {len(conn.tools)} 个工具")
             except Exception as e:
-                print(f"  ❌ MCP [{name}] 连接失败: {e}")
+                print(f"  [ERR] MCP [{name}] 连接失败: {e}")
 
         return all_tool_defs
 

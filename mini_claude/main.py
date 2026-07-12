@@ -66,9 +66,9 @@ _KB_INDEX_DIR = os.path.join(os.path.expanduser("~"), ".mini_claude", "faiss_ind
 
 DOG = r"""
         /)_/)
-       (  •⩊•)  有什么可以帮你的？
-       /っ   ﾂ
-      /    ﾉﾉ
+       (  -w-)  有什么可以帮你的？
+        |   |
+        |   |
 """
 
 
@@ -77,7 +77,7 @@ def thinking_indicator(stop_event: threading.Event):
     start = time.time()
     while not stop_event.is_set():
         elapsed = int(time.time() - start)
-        sys.stdout.write(f"\r  🤔 thinking... 已思考 {elapsed} 秒")
+        sys.stdout.write(f"\r  [thinking] 已思考 {elapsed} 秒")
         sys.stdout.flush()
         time.sleep(1)
     # 清除 thinking 行
@@ -252,7 +252,7 @@ def _interactive_skill_picker(skills: list[dict]) -> str | None:
         lines.append(f"\r{Style.CLEAR_LINE}  {Style.muted('─' * 45)}")
         for i, s in enumerate(skills):
             if i == selected:
-                lines.append(f"\r{Style.CLEAR_LINE}  {Style.REVERSE} ▸ {s['name']:<15} "
+                lines.append(f"\r{Style.CLEAR_LINE}  {Style.REVERSE} > {s['name']:<15} "
                              f"{s['description'][:40]}  {Style.RESET}")
             else:
                 lines.append(f"\r{Style.CLEAR_LINE}    {s['name']:<15} "
@@ -357,7 +357,7 @@ def main():
                     desc = s["desc"]
                     rest = max(0, width - len(cmd) - 4)
                     desc_d = desc[:rest] if rest > 3 else ""
-                    line = f"  {'▸' if i == selected else ' '} {cmd}  \033[38;5;244m{desc_d}\033[0m"
+                    line = f"  {'>' if i == selected else ' '} {cmd}  \033[38;5;244m{desc_d}\033[0m"
                     if i == selected:
                         line = f"\033[7m{line}\033[0m"
                     lines.append(line)
