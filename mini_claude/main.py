@@ -388,9 +388,9 @@ def main():
         redraw()
 
         while True:
-            ch = msvcrt.getch()
+            ch = msvcrt.getwch()
 
-            if ch == b"\r":  # Enter
+            if ch == "\r":  # Enter
                 if suggestions and selected < len(suggestions):
                     buffer = suggestions[selected]["cmd"]
                 # 清除提示行 + 下拉框
@@ -407,15 +407,15 @@ def main():
                 print()
                 return buffer.strip()
 
-            elif ch == b"\xe0":  # 功能键前缀
-                ch2 = msvcrt.getch()
-                if suggestions and ch2 in (b"H", b"P"):
-                    if ch2 == b"H":  # ↑
+            elif ch == "\xe0":  # 功能键前缀
+                ch2 = msvcrt.getwch()
+                if suggestions and ch2 in ("H", "P"):
+                    if ch2 == "H":  # ↑
                         selected = max(0, selected - 1)
                     else:  # ↓
                         selected = min(len(suggestions) - 1, selected + 1)
                     redraw()
-                elif not suggestions and ch2 == b"H" and _input_history:
+                elif not suggestions and ch2 == "H" and _input_history:
                     if history_pos == -1:
                         history_pos = len(_input_history) - 1
                     elif history_pos > 0:
@@ -426,7 +426,7 @@ def main():
                     suggestions = _get_suggestions(buffer, all_cmds) if buffer.startswith("/") else []
                     selected = 0
                     redraw()
-                elif not suggestions and ch2 == b"P" and history_pos != -1:
+                elif not suggestions and ch2 == "P" and history_pos != -1:
                     history_pos += 1
                     if history_pos >= len(_input_history):
                         history_pos = -1
@@ -437,30 +437,30 @@ def main():
                     selected = 0
                     redraw()
 
-            elif ch == b"\t":  # Tab → 补全
+            elif ch == "\t":  # Tab → 补全
                 if suggestions and selected < len(suggestions):
                     buffer = suggestions[selected]["cmd"]
                     suggestions = _get_suggestions(buffer, all_cmds) if buffer.startswith("/") else []
                     selected = 0
                     redraw()
 
-            elif ch in (b"\x7f", b"\x08"):  # Backspace
+            elif ch in ("\x7f", "\x08"):  # Backspace
                 buffer = buffer[:-1]
                 suggestions = _get_suggestions(buffer, all_cmds) if buffer.startswith("/") else []
                 selected = 0
                 history_pos = -1
                 redraw()
 
-            elif ch == b"\x1b":  # Esc → 关闭下拉
+            elif ch == "\x1b":  # Esc → 关闭下拉
                 if suggestions:
                     suggestions = []
                     selected = 0
                     redraw()
 
-            elif ch == b"\x03":  # Ctrl+C
+            elif ch == "\x03":  # Ctrl+C
                 raise KeyboardInterrupt
 
-            elif ch == b"\x15":  # Ctrl+U → 清空行
+            elif ch == "\x15":  # Ctrl+U → 清空行
                 buffer = ""
                 suggestions = []
                 selected = 0
@@ -468,12 +468,9 @@ def main():
                 redraw()
 
             else:
-                try:
-                    c = ch.decode("utf-8")
-                except UnicodeDecodeError:
-                    continue
-                if c.isprintable():
-                    buffer += c
+                # getwch 返回的是 Unicode 字符串，直接判断可打印即可
+                if ch.isprintable():
+                    buffer += ch
                     suggestions = _get_suggestions(buffer, all_cmds) if buffer.startswith("/") else []
                     selected = 0
                     history_pos = -1
