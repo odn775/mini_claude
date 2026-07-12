@@ -331,27 +331,38 @@ def main():
         selected = 0
         suggestions: list[dict] = []
         history_pos = -1
-        prev_height = 0  # 上次下拉框的行数，用于定位清除
+        cursor_line = 0  # 当前光标在提示行之下的行数（下拉框高度）
 
         def redraw():
-            """重绘输入行 + 下拉建议（先上移清除旧内容）。"""
-            nonlocal prev_height
+            """重绘输入行 + 下拉建议。完全不用 \033[J，每行用 \033[K 单独清。"""
+            nonlocal cursor_line
 
-            # 如果有下拉框，从下拉框底部上移到提示行位置
-            if prev_height > 0:
-                sys.stdout.write(f"\033[{prev_height}A")
+            # 从下拉框底部上移到提示行
+            if cursor_line > 0:
+                sys.stdout.write(f"\033[{cursor_line}A")
 
-            # 从提示行开头清空到屏幕末尾（清除旧下拉框）
-            sys.stdout.write("\r\033[J")
+            # 清除提示行 → 重绘
+            sys.stdout.write(f"\r\033[K> {buffer}")
 
-            # 重绘输入行
-            sys.stdout.write(f"> {buffer}")
-
+            # 清掉旧的下拉框区域（如果有）
             if suggestions:
-                lines = [""]
-                width = min(55, shutil.get_terminal_size().columns - 2)
-                lines.append(f"\033[38;5;244m{'─' * width}\033[0m")
+                # 计算新下拉框行数
                 shown = suggestions[:10]
+                new_lines = 1 + 1 + len(shown) + 1  # 空行 + 分隔线 + 项 + 分隔线
+
+                # 旧下拉框比新的大 → 多出来的行要清掉
+                if cursor_line > new_lines:
+                    for _ in range(cursor_line - new_lines):
+                        sys.stdout.write("\n\r\033[K")
+                    sys.stdout.write(f"\033[{cursor_line - new_lines}A")
+
+                # 写新下拉框（每行先清除再写）
+                width = min(55, shutil.get_terminal_size().columns - 2)
+                sep = f"\033[38;5;244m{'─' * width}\033[0m"
+
+                sys.stdout.write("\n\r\033[K")  # 空行
+                sys.stdout.write("\n\r\033[K" + sep)
+
                 for i, s in enumerate(shown):
                     cmd = s["cmd"]
                     desc = s["desc"]
@@ -360,12 +371,17 @@ def main():
                     line = f"  {'>' if i == selected else ' '} {cmd}  \033[38;5;244m{desc_d}\033[0m"
                     if i == selected:
                         line = f"\033[7m{line}\033[0m"
-                    lines.append(line)
-                lines.append(f"\033[38;5;244m{'─' * width}\033[0m")
-                sys.stdout.write("\n" + "\n".join(lines))
-                prev_height = len(lines)
+                    sys.stdout.write("\n\r\033[K" + line)
+
+                sys.stdout.write("\n\r\033[K" + sep)
+                cursor_line = new_lines
             else:
-                prev_height = 0
+                # 没有下拉框，但之前可能有 → 清掉旧的下拉框行
+                if cursor_line > 0:
+                    for _ in range(cursor_line):
+                        sys.stdout.write("\n\r\033[K")
+                    sys.stdout.write(f"\033[{cursor_line}A\r")
+                cursor_line = 0
 
             sys.stdout.flush()
 
@@ -375,13 +391,16 @@ def main():
             ch = msvcrt.getch()
 
             if ch == b"\r":  # Enter
-                # 如果下拉框有选中项，自动补全选中的命令
                 if suggestions and selected < len(suggestions):
                     buffer = suggestions[selected]["cmd"]
-                # 清除下拉框区域再返回
-                if prev_height > 0:
-                    sys.stdout.write(f"\033[{prev_height}A")
-                sys.stdout.write("\r\033[J")
+                # 清除提示行 + 下拉框
+                if cursor_line > 0:
+                    sys.stdout.write(f"\033[{cursor_line}A")
+                sys.stdout.write("\r\033[K")
+                for _ in range(cursor_line):
+                    sys.stdout.write("\n\r\033[K")
+                if cursor_line > 0:
+                    sys.stdout.write(f"\033[{cursor_line}A\r")
                 sys.stdout.flush()
                 if buffer and (not _input_history or _input_history[-1] != buffer):
                     _input_history.append(buffer)
@@ -397,7 +416,6 @@ def main():
                         selected = min(len(suggestions) - 1, selected + 1)
                     redraw()
                 elif not suggestions and ch2 == b"H" and _input_history:
-                    # ↑ 浏览历史
                     if history_pos == -1:
                         history_pos = len(_input_history) - 1
                     elif history_pos > 0:
@@ -409,7 +427,6 @@ def main():
                     selected = 0
                     redraw()
                 elif not suggestions and ch2 == b"P" and history_pos != -1:
-                    # ↓ 下翻历史
                     history_pos += 1
                     if history_pos >= len(_input_history):
                         history_pos = -1
