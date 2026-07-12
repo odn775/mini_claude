@@ -342,7 +342,7 @@ def main():
                 sys.stdout.write(f"\033[{cursor_line}A")
 
             # 清除提示行 → 重绘
-            sys.stdout.write(f"\r\033[K> {buffer}")
+            sys.stdout.write(f"\033[0G\033[K> {buffer}")
 
             # 清掉旧的下拉框区域（如果有）
             if suggestions:
@@ -353,15 +353,15 @@ def main():
                 # 旧下拉框比新的大 → 多出来的行要清掉
                 if cursor_line > new_lines:
                     for _ in range(cursor_line - new_lines):
-                        sys.stdout.write("\n\r\033[K")
+                        sys.stdout.write("\n\033[0G\033[K")
                     sys.stdout.write(f"\033[{cursor_line - new_lines}A")
 
                 # 写新下拉框（每行先清除再写）
                 width = min(55, shutil.get_terminal_size().columns - 2)
                 sep = f"\033[38;5;244m{'─' * width}\033[0m"
 
-                sys.stdout.write("\n\r\033[K")  # 空行
-                sys.stdout.write("\n\r\033[K" + sep)
+                sys.stdout.write("\n\033[0G\033[K")  # 空行
+                sys.stdout.write("\n\033[0G\033[K" + sep)
 
                 for i, s in enumerate(shown):
                     cmd = s["cmd"]
@@ -371,16 +371,16 @@ def main():
                     line = f"  {'>' if i == selected else ' '} {cmd}  \033[38;5;244m{desc_d}\033[0m"
                     if i == selected:
                         line = f"\033[7m{line}\033[0m"
-                    sys.stdout.write("\n\r\033[K" + line)
+                    sys.stdout.write("\n\033[0G\033[K" + line)
 
-                sys.stdout.write("\n\r\033[K" + sep)
+                sys.stdout.write("\n\033[0G\033[K" + sep)
                 cursor_line = new_lines
             else:
                 # 没有下拉框，但之前可能有 → 清掉旧的下拉框行
                 if cursor_line > 0:
                     for _ in range(cursor_line):
-                        sys.stdout.write("\n\r\033[K")
-                    sys.stdout.write(f"\033[{cursor_line}A\r")
+                        sys.stdout.write("\n\033[0G\033[K")
+                    sys.stdout.write(f"\033[{cursor_line}A\033[0G")
                 cursor_line = 0
 
             sys.stdout.flush()
@@ -396,11 +396,11 @@ def main():
                 # 清除提示行 + 下拉框
                 if cursor_line > 0:
                     sys.stdout.write(f"\033[{cursor_line}A")
-                sys.stdout.write("\r\033[K")
+                sys.stdout.write("\033[0G\033[K")
                 for _ in range(cursor_line):
-                    sys.stdout.write("\n\r\033[K")
+                    sys.stdout.write("\n\033[0G\033[K")
                 if cursor_line > 0:
-                    sys.stdout.write(f"\033[{cursor_line}A\r")
+                    sys.stdout.write(f"\033[{cursor_line}A\033[0G")
                 sys.stdout.flush()
                 if buffer and (not _input_history or _input_history[-1] != buffer):
                     _input_history.append(buffer)
