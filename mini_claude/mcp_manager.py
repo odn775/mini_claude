@@ -2,7 +2,7 @@
 MCP（Model Context Protocol）管理器。
 
 管理 MCP 服务器的生命周期（启动→工具发现→调用→关闭）。
-仅支持 stdio transport，仅处理 text 类型返回值。
+支持 stdio 和 streamable_http 两种 transport，仅处理 text 类型返回值。
 """
 
 import asyncio
@@ -11,6 +11,7 @@ import os
 
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
+from mcp.client.streamable_http import streamable_http_client
 
 MCP_CONFIG_FILE = os.path.join(os.path.expanduser("~"), ".mini_claude", "mcp.json")
 
@@ -30,20 +31,23 @@ def _load_mcp_config() -> dict:
 class _ServerConnection:
     """单个 MCP 服务器的连接状态。"""
 
-    def __init__(self, name: str, params: StdioServerParameters):
+    def __init__(self, name: str, cfg: dict):
         self.name = name
-        self.params = params
+        self.cfg = cfg  # 完整配置项
+        self.server_type = cfg.get("type", "stdio")  # "stdio" 或 "streamable_http"/"sse"
         self.session: ClientSession | None = None
+        self.tools = []
         self._read = None
         self._write = None
-        self._stdio_ctx = None
+        self._transport_ctx = None
         self._session_ctx = None
 
     async def connect(self):
-        """建立 stdio 连接 → 握手 → 发现工具列表。"""
-        # 手动管理 async 上下文管理器，保持连接长期存活
-        self._stdio_ctx = stdio_client(self.params)
-        self._read, self._write = await self._stdio_ctx.__aenter__()
+        """建立连接（stdio 或 SSE）→ 握手 → 发现工具列表。"""
+        if self.server_type in ("streamable_http", "sse"):
+            await self._connect_sse()
+        else:
+            await self._connect_stdio()
 
         self._session_ctx = ClientSession(self._read, self._write)
         self.session = await self._session_ctx.__aenter__()
@@ -54,6 +58,26 @@ class _ServerConnection:
         result = await self.session.list_tools()
         self.tools = result.tools
 
+    async def _connect_stdio(self):
+        """通过 stdio 连接本地 MCP 服务器。"""
+        env = None
+        if self.cfg.get("env"):
+            env = {**os.environ, **self.cfg["env"]}
+        params = StdioServerParameters(
+            command=self.cfg["command"],
+            args=self.cfg.get("args", []),
+            env=env,
+        )
+        self._transport_ctx = stdio_client(params)
+        self._read, self._write = await self._transport_ctx.__aenter__()
+
+    async def _connect_sse(self):
+        """通过 Streamable HTTP 连接远程 MCP 服务器。"""
+        url = self.cfg["url"]
+        self._transport_ctx = streamable_http_client(url)
+        streams = await self._transport_ctx.__aenter__()
+        self._read, self._write = streams[0], streams[1]
+
     async def disconnect(self):
         """关闭连接。"""
         if self._session_ctx:
@@ -62,12 +86,12 @@ class _ServerConnection:
             except Exception:
                 pass
             self._session_ctx = None
-        if self._stdio_ctx:
+        if self._transport_ctx:
             try:
-                await self._stdio_ctx.__aexit__(None, None, None)
+                await self._transport_ctx.__aexit__(None, None, None)
             except Exception:
                 pass
-            self._stdio_ctx = None
+            self._transport_ctx = None
 
     async def call(self, tool_name: str, arguments: dict) -> str:
         """调用一个工具，返回纯文本结果。"""
@@ -108,16 +132,7 @@ class MCPManager:
 
         all_tool_defs: list[dict] = []
         for name, cfg in config.items():
-            env = None
-            if cfg.get("env"):
-                env = {**os.environ, **cfg["env"]}
-            params = StdioServerParameters(
-                command=cfg["command"],
-                args=cfg.get("args", []),
-                env=env,
-            )
-
-            conn = _ServerConnection(name, params)
+            conn = _ServerConnection(name, cfg)
             try:
                 self._loop.run_until_complete(conn.connect())
                 self._connections[name] = conn

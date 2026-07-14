@@ -85,9 +85,9 @@ def thinking_indicator(stop_event: threading.Event):
     sys.stdout.flush()
 
 
-def _build_system_prompt() -> str:
+def _build_system_prompt(context_window: int | None = None) -> str:
     """构建 system prompt，附上 skill 列表供模型自主调用。"""
-    skills = list_skills()
+    skills = list_skills(context_window)
     if not skills:
         return "你是 Mini Claude，一个智能助手。"
 
@@ -511,7 +511,8 @@ def main():
           f"{Style.command('/skills')} {Style.muted('skill')}  "
           f"{Style.command('/kb')} {Style.muted('知识库')}")
 
-    messages = [{"role": "system", "content": _build_system_prompt()}]
+    ctx_window = _get_context_window(config["model"])
+    messages = [{"role": "system", "content": _build_system_prompt(ctx_window)}]
     all_cmds = _build_command_list()
 
     # 工具执行路由：内置工具走 execute_tool，MCP 工具走 mcp_manager
@@ -540,7 +541,8 @@ def main():
             break
 
         if user_input == "/clear":
-            messages = [{"role": "system", "content": _build_system_prompt()}]
+            ctx_window = _get_context_window(config["model"])
+            messages = [{"role": "system", "content": _build_system_prompt(ctx_window)}]
             clear_read_cache()
             print(f"  {Style.colored('对话历史已清空', Style.GREEN)}")
             continue

@@ -2,7 +2,7 @@ import os
 import re
 
 SKILLS_DIR = os.path.join(os.path.expanduser("~"), ".mini_claude", "skills")
-MAX_DESC_TOTAL = 250  # 所有 skill description 总字符上限
+MAX_DESC_TOTAL = 300  # 所有 skill description 总字符上限
 
 
 def _parse_frontmatter(text: str) -> tuple[dict, str]:
@@ -20,8 +20,12 @@ def _parse_frontmatter(text: str) -> tuple[dict, str]:
     return {}, text
 
 
-def list_skills() -> list[dict]:
-    """扫描 skills 目录，返回所有可用 skill 的元信息。"""
+def list_skills(context_window: int | None = None) -> list[dict]:
+    """扫描 skills 目录，返回所有可用 skill 的元信息。
+
+    context_window: 模型上下文窗口大小（token 数）。如果提供，所有 description
+                    总字符数不超过窗口的 1%（按 name 排序依次保留），超出丢弃。
+    """
     if not os.path.isdir(SKILLS_DIR):
         return []
 
@@ -44,13 +48,19 @@ def list_skills() -> list[dict]:
             "disable_model_invocation": meta.get("disable-model-invocation", "false").lower() == "true",
         })
 
-    # 限制所有 description 总字符，避免浪费 token
-    total_desc = sum(len(s["description"]) for s in skills)
-    if total_desc > MAX_DESC_TOTAL:
-        budget_per_skill = MAX_DESC_TOTAL // len(skills)
+    # 规则 A：单个 description 不超过 300 字符
+    for s in skills:
+        if len(s["description"]) > 300:
+            s["description"] = s["description"][:297] + "..."
+
+    # 规则 B：总量不超过上下文窗口的 1%
+    if context_window is not None:
+        budget = context_window // 100
+        acc = 0
         for s in skills:
-            if len(s["description"]) > budget_per_skill:
-                s["description"] = s["description"][:budget_per_skill - 3] + "..."
+            acc += len(s["description"])
+            if acc > budget:
+                s["description"] = ""
 
     return skills
 

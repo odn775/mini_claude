@@ -2,3 +2,7 @@ openai>=1.0.0
 faiss-cpu>=1.8.0
 numpy>=1.24
 mcp>=1.28
+gradio
+pypandoc
+python-docx
+path.py

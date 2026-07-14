@@ -49,7 +49,7 @@
 - YAML frontmatter 格式的 SKILL.md 文件存放在 `~/.mini_claude/skills/<name>/`
 - 技能目录可附带参考文件
 - 模型可自主调用 `run_skill` 加载技能指令
-- description 总字符自动限制（≤ 250 chars）节省 token
+- 单个description 不超过300字符，所有description不超过上下文窗口的1%
 
 ### MCP（Model Context Protocol）集成
 - 支持 MCP 服务器通过 **stdio transport** 接入，使用官方 `mcp` Python SDK

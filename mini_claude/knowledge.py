@@ -4,7 +4,7 @@ import re
 from openai import OpenAI
 
 
-EMBEDDING_MODEL = "text-embedding-v4"
+EMBEDDING_MODEL = "text-embedding-v3"
 DEFAULT_CHUNK_SIZE = 500
 SEARCH_TOP_K = 3
 
