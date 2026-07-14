@@ -40,10 +40,22 @@
 | `run_skill` | 加载并执行 skill 指令 |
 
 ### RAG 知识库
-- `text-embedding-v4`（阿里百炼）生成向量
+
+**索引构建**
+- `multimodal-embedding-v1`（阿里百炼）生成向量（1024 维）
 - FAISS IndexFlatL2 本地索引，无需外部服务
-- 自动按段落/句切块（500 字/块），支持中英文
+- 自动按段落/句切块（2000 字/块），支持中英文
+- 动态批量 + 断点续传：中途中断不丢进度，下次重建从断点继续
 - 命令：`/kb rebuild` 建索引，`/kb status` 查看状态
+
+**检索管线**（三阶段）
+```
+用户提问 → ① LLM 查询改写 → ② embedding 粗筛(20条) + 关键词补漏
+         → ③ 合并去重 → ④ gte-rerank-v2 精排 → 返回 Top-5
+```
+- **查询改写**：LLM 将自然语言转为密集检索关键词，提取人名/地名/事件
+- **混合检索**：语义搜索 + 子串关键词匹配，互补补漏
+- **重排序**：`gte-rerank-v2` 对候选文档精排，显著提升命中精度
 
 ### Skills 技能系统
 - YAML frontmatter 格式的 SKILL.md 文件存放在 `~/.mini_claude/skills/<name>/`
@@ -52,7 +64,7 @@
 - 单个description 不超过300字符，所有description不超过上下文窗口的1%
 
 ### MCP（Model Context Protocol）集成
-- 支持 MCP 服务器通过 **stdio transport** 接入，使用官方 `mcp` Python SDK
+- 支持 MCP 服务器通过 **stdio** 和 **streamable_http** 两种 transport 接入
 - 配置存放于 `~/.mini_claude/mcp.json`，格式：
   ```json
   {
@@ -184,6 +196,8 @@ README.md
 - openai ≥ 1.0.0
 - faiss-cpu ≥ 1.8.0
 - numpy ≥ 1.24
+- requests
+- mcp ≥ 1.28
 
 ## 模型适配
 
