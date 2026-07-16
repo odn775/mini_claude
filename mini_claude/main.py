@@ -356,79 +356,54 @@ def main():
         cursor_line = 0  # 当前光标在提示行之下的行数（下拉框高度）
 
         def redraw():
-            """重绘输入行 + 下拉建议。完全不用 \033[J，每行用 \033[K 单独清。"""
+            """重绘输入行 + 下拉建议。"""
             nonlocal cursor_line
+            # 光标已在输入行 → 清除输入行及下方所有内容，再重绘
+            sys.stdout.write(f"[0G[K> {buffer}[J")
 
-            # 从下拉框底部上移到提示行
-            if cursor_line > 0:
-                sys.stdout.write(f"\033[{cursor_line}A")
-
-            # 清除提示行 → 重绘
-            sys.stdout.write(f"\033[0G\033[K> {buffer}")
-
-            # 清掉旧的下拉框区域（如果有）
             if suggestions:
-                # 计算新下拉框行数
+                # 画新下拉框
                 shown = suggestions[:10]
                 new_lines = 1 + 1 + len(shown) + 1  # 空行 + 分隔线 + 项 + 分隔线
 
-                # 旧下拉框比新的大 → 多出来的行要清掉
-                if cursor_line > new_lines:
-                    for _ in range(cursor_line - new_lines):
-                        sys.stdout.write("\n\033[0G\033[K")
-                    sys.stdout.write(f"\033[{cursor_line - new_lines}A")
-
-                # 写新下拉框（每行先清除再写）
                 width = min(55, shutil.get_terminal_size().columns - 2)
-                sep = f"\033[38;5;244m{'─' * width}\033[0m"
+                sep = f"[38;5;244m{'─' * width}[0m"
 
-                sys.stdout.write("\n\033[0G\033[K")  # 空行
-                sys.stdout.write("\n\033[0G\033[K" + sep)
+                sys.stdout.write("[B[0G[K")  # 空行
+                sys.stdout.write("[B[0G[K" + sep)
 
                 for i, s in enumerate(shown):
                     cmd = s["cmd"]
                     desc = s["desc"]
                     rest = max(0, width - len(cmd) - 4)
                     desc_d = desc[:rest] if rest > 3 else ""
-                    line = f"  {'>' if i == selected else ' '} {cmd}  \033[38;5;244m{desc_d}\033[0m"
+                    line = f"  {'>' if i == selected else ' '} {cmd}  [38;5;244m{desc_d}[0m"
                     if i == selected:
-                        line = f"\033[7m{line}\033[0m"
-                    sys.stdout.write("\n\033[0G\033[K" + line)
+                        line = f"[7m{line}[0m"
+                    sys.stdout.write("[B[0G[K" + line)
 
-                sys.stdout.write("\n\033[0G\033[K" + sep)
+                sys.stdout.write("[B[0G[K" + sep)
                 cursor_line = new_lines
             else:
-                # 没有下拉框，但之前可能有 → 清掉旧的下拉框行
-                if cursor_line > 0:
-                    for _ in range(cursor_line):
-                        sys.stdout.write("\n\033[0G\033[K")
-                    sys.stdout.write(f"\033[{cursor_line}A\033[0G")
                 cursor_line = 0
 
             # 将光标定位到 buffer 中的正确位置
             if cursor_line > 0:
-                sys.stdout.write(f"\033[{cursor_line}A")
+                sys.stdout.write(f"[{cursor_line}A")
             col = 3 + _display_width(buffer[:cursor_pos])
-            sys.stdout.write(f"\033[{col}G")
+            sys.stdout.write(f"[{col}G")
 
             sys.stdout.flush()
 
         redraw()
-
         while True:
             ch = msvcrt.getwch()
 
             if ch == "\r":  # Enter
                 if suggestions and selected < len(suggestions):
                     buffer = suggestions[selected]["cmd"]
-                # 清除提示行 + 下拉框
-                if cursor_line > 0:
-                    sys.stdout.write(f"\033[{cursor_line}A")
-                sys.stdout.write("\033[0G\033[K")
-                for _ in range(cursor_line):
-                    sys.stdout.write("\n\033[0G\033[K")
-                if cursor_line > 0:
-                    sys.stdout.write(f"\033[{cursor_line}A\033[0G")
+                # 清除输入行 + 下拉框（\033[J 清除光标到屏幕底部）
+                sys.stdout.write("\033[0G\033[J")
                 sys.stdout.flush()
                 if buffer and (not _input_history or _input_history[-1] != buffer):
                     _input_history.append(buffer)
