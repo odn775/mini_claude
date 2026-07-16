@@ -328,7 +328,28 @@ def main():
 
         import shutil
 
+        def _display_width(s: str) -> int:
+            """计算字符串在终端中的显示宽度（CJK 宽字符计 2，其余计 1）。"""
+            w = 0
+            for ch in s:
+                cp = ord(ch)
+                if (0x4E00 <= cp <= 0x9FFF or      # CJK 统一表意文字
+                    0x3400 <= cp <= 0x4DBF or      # CJK 扩展 A
+                    0xF900 <= cp <= 0xFAFF or      # CJK 兼容表意文字
+                    0xFF01 <= cp <= 0xFF60 or      # 全角形式
+                    0x3000 <= cp <= 0x303F or      # CJK 符号和标点
+                    0x2E80 <= cp <= 0x2EFF or      # CJK 部首
+                    0x20000 <= cp <= 0x2FFFF or    # CJK 扩展 B/C/D/E/F
+                    0xFE30 <= cp <= 0xFE4F or      # CJK 兼容形式
+                    0x1100 <= cp <= 0x115F or      # 谚文
+                    0xAC00 <= cp <= 0xD7AF):       # 谚文音节
+                    w += 2
+                else:
+                    w += 1
+            return w
+
         buffer = ""
+        cursor_pos = 0  # 当前光标在 buffer 中的位置
         selected = 0
         suggestions: list[dict] = []
         history_pos = -1
@@ -384,6 +405,12 @@ def main():
                     sys.stdout.write(f"\033[{cursor_line}A\033[0G")
                 cursor_line = 0
 
+            # 将光标定位到 buffer 中的正确位置
+            if cursor_line > 0:
+                sys.stdout.write(f"\033[{cursor_line}A")
+            col = 3 + _display_width(buffer[:cursor_pos])
+            sys.stdout.write(f"\033[{col}G")
+
             sys.stdout.flush()
 
         redraw()
@@ -424,6 +451,7 @@ def main():
                     else:
                         continue
                     buffer = _input_history[history_pos]
+                    cursor_pos = len(buffer)
                     suggestions = _get_suggestions(buffer, all_cmds) if buffer.startswith("/") else []
                     selected = 0
                     redraw()
@@ -434,19 +462,33 @@ def main():
                         buffer = ""
                     else:
                         buffer = _input_history[history_pos]
+                    cursor_pos = len(buffer)
                     suggestions = _get_suggestions(buffer, all_cmds) if buffer.startswith("/") else []
                     selected = 0
+                    redraw()
+
+                elif ch2 == "K":  # ← 左方向键
+                    if cursor_pos > 0:
+                        cursor_pos -= 1
+                    redraw()
+
+                elif ch2 == "M":  # → 右方向键
+                    if cursor_pos < len(buffer):
+                        cursor_pos += 1
                     redraw()
 
             elif ch == "\t":  # Tab → 补全
                 if suggestions and selected < len(suggestions):
                     buffer = suggestions[selected]["cmd"]
+                    cursor_pos = len(buffer)
                     suggestions = _get_suggestions(buffer, all_cmds) if buffer.startswith("/") else []
                     selected = 0
                     redraw()
 
             elif ch in ("\x7f", "\x08"):  # Backspace
-                buffer = buffer[:-1]
+                if cursor_pos > 0:
+                    buffer = buffer[:cursor_pos - 1] + buffer[cursor_pos:]
+                    cursor_pos -= 1
                 suggestions = _get_suggestions(buffer, all_cmds) if buffer.startswith("/") else []
                 selected = 0
                 history_pos = -1
@@ -463,6 +505,7 @@ def main():
 
             elif ch == "\x15":  # Ctrl+U → 清空行
                 buffer = ""
+                cursor_pos = 0
                 suggestions = []
                 selected = 0
                 history_pos = -1
@@ -471,7 +514,8 @@ def main():
             else:
                 # getwch 返回的是 Unicode 字符串，直接判断可打印即可
                 if ch.isprintable():
-                    buffer += ch
+                    buffer = buffer[:cursor_pos] + ch + buffer[cursor_pos:]
+                    cursor_pos += 1
                     suggestions = _get_suggestions(buffer, all_cmds) if buffer.startswith("/") else []
                     selected = 0
                     history_pos = -1
