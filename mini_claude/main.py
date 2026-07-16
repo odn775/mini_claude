@@ -8,6 +8,7 @@ from .config import get_config
 from .knowledge import build_index, get_index_info
 from .skills import list_skills, run_skill, load_skill
 from .mcp_manager import MCPManager
+from .retry import with_retry
 from openai import OpenAI
 
 
@@ -118,7 +119,7 @@ def _get_context_window(model_name: str) -> int:
     for prefix, size in _CONTEXT_WINDOWS.items():
         if model_name.startswith(prefix):
             return size
-    return 1_000_000  # 默认
+    return 200_000  # 默认
 
 
 def _estimate_tokens(messages: list[dict]) -> tuple[int, dict[str, int]]:
@@ -193,12 +194,12 @@ def _compact_messages(messages: list[dict], config: dict) -> tuple[list[dict], s
     )
 
     client = OpenAI(api_key=config["api_key"], base_url=config["base_url"])
-    resp = client.chat.completions.create(
+    resp = with_retry(lambda: client.chat.completions.create(
         model=config["model"],
         messages=[{"role": "user", "content": prompt}],
         max_tokens=2048,
         temperature=0.3,
-    )
+    ))
     summary = resp.choices[0].message.content or ""
 
     new_messages = []

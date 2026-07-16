@@ -2,6 +2,7 @@ import json
 from openai import OpenAI
 from .config import get_config
 from .tools import execute_tool
+from .retry import with_retry
 
 MAX_TOOL_ITERATIONS = 20
 
@@ -32,12 +33,12 @@ def run_agent(
         tool_executor = execute_tool
 
     for iteration in range(MAX_TOOL_ITERATIONS):
-        response = client.chat.completions.create(
+        response = with_retry(lambda: client.chat.completions.create(
             model=config["model"],
             messages=messages,
             tools=tools,
             max_tokens=config["max_tokens"],
-        )
+        ))
 
         if not response.choices:
             return "[错误] 模型未返回任何结果"
@@ -71,6 +72,9 @@ def run_agent(
                 except json.JSONDecodeError:
                     tool_args = {}
                 result = tool_executor(tc.function.name, tool_args)
+                # 截断过长的工具返回，防止撑爆上下文
+                if len(result) > 15000:
+                    result = result[:15000] + "\n...(工具返回过长，已截断至 15000 字符)"
                 messages.append({
                     "role": "tool",
                     "tool_call_id": tc.id,
