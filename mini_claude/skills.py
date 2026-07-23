@@ -81,13 +81,12 @@ def load_skill(name: str) -> tuple[dict | None, str | None]:
     return meta, body
 
 
-def run_skill(messages: list[dict], skill_name: str, skill_args: str, tools: list[dict]) -> str | None:
-    """
-    运行一个 skill。
-    返回 agent 的输出文本，如果 skill 不存在则返回 None。
-    """
-    from .agent import run_agent
+def build_skill_prompt(skill_name: str, skill_args: str) -> str | None:
+    """构造一条用于注入主对话的 user 消息内容。
 
+    将 SKILL.md 正文作为指令、skill_args 作为输入拼成一条 user 消息，
+    让主 run_agent 循环带着完整历史和全部工具执行。skill 不存在返回 None。
+    """
     meta, body = load_skill(skill_name)
     if meta is None:
         return None
@@ -95,17 +94,9 @@ def run_skill(messages: list[dict], skill_name: str, skill_args: str, tools: lis
     if not body:
         body = meta.get("description", "")
 
-    # 用 skill body 替换 system 消息
-    skill_messages = []
-
-    # 有 system？
-    if messages and messages[0].get("role") == "system":
-        skill_messages.append({"role": "system", "content": body})
-    else:
-        skill_messages.append({"role": "system", "content": body})
-
-    # 把用户参数作为 user 消息
-    user_content = skill_args if skill_args else meta.get("description", "")
-    skill_messages.append({"role": "user", "content": user_content})
-
-    return run_agent(skill_messages, tools)
+    args = skill_args.strip() if skill_args and skill_args.strip() else "（无）"
+    return (
+        f"（执行 skill: {skill_name}）\n\n"
+        f"请严格按照以下 skill 指令执行：\n\n{body}\n\n"
+        f"输入/参数: {args}"
+    )

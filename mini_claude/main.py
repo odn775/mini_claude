@@ -6,7 +6,7 @@ from .agent import run_agent
 from .tools import TOOLS, clear_read_cache, execute_tool
 from .config import get_config
 from .knowledge import build_index, get_index_info
-from .skills import list_skills, run_skill, load_skill
+from .skills import list_skills, build_skill_prompt
 from .mcp_manager import MCPManager
 from .retry import with_retry
 from openai import OpenAI
@@ -123,7 +123,11 @@ def _get_context_window(model_name: str) -> int:
 
 
 def _estimate_tokens(messages: list[dict]) -> tuple[int, dict[str, int]]:
-    """粗略估算当前上下文的 token 数（中文 1 token/字，英文 0.25 token/字符）。"""
+    """粗略估算当前上下文的 token 数（中文 1 token/字，英文 0.25 token/字符）。
+
+    统计每条消息的 content 文本，以及 assistant 消息中 tool_calls 的
+    函数名 + arguments JSON（这部分在 content 之外，容易被漏算）。
+    """
     total = 0
     counts = {"system": 0, "user": 0, "assistant": 0, "tool": 0}
     for m in messages:
@@ -134,8 +138,15 @@ def _estimate_tokens(messages: list[dict]) -> tuple[int, dict[str, int]]:
                 if isinstance(c, dict) and c.get("type") == "text":
                     texts.append(c.get("text", ""))
             content = " ".join(texts)
-        cn = sum(1 for c in content if "一" <= c <= "鿿")
-        other = len(content) - cn
+        # assistant 的 tool_calls（函数名 + arguments）不在 content 里，单独计入
+        extra = ""
+        if m.get("tool_calls"):
+            for tc in m["tool_calls"]:
+                fn = tc.get("function", {})
+                extra += fn.get("name", "") + " " + fn.get("arguments", "")
+        text = content + " " + extra
+        cn = sum(1 for c in text if "一" <= c <= "鿿")
+        other = len(text) - cn
         tokens = int(cn * 1.0 + other * 0.25) + 5  # +5 消息头开销
         total += tokens
         role = m.get("role", "unknown")
@@ -144,8 +155,14 @@ def _estimate_tokens(messages: list[dict]) -> tuple[int, dict[str, int]]:
     return total, counts
 
 
-def _compact_messages(messages: list[dict], config: dict) -> tuple[list[dict], str]:
-    """用 LLM 压缩对话历史，返回新消息列表 + 摘要文本。"""
+def _compact_messages(
+    messages: list[dict], config: dict, preserve_last_user: bool = False
+) -> tuple[list[dict], str]:
+    """用 LLM 压缩对话历史，返回新消息列表 + 摘要文本。
+
+    preserve_last_user=True 时（自动压缩用），把最后一条 user 消息原样保留，
+    只压缩 system 与该消息之间的历史——避免把"刚问的当前问题"压成摘要。
+    """
     # 分离 system prompt
     system = None
     history = messages
@@ -153,8 +170,20 @@ def _compact_messages(messages: list[dict], config: dict) -> tuple[list[dict], s
         system = messages[0]
         history = messages[1:]
 
+    # 可选：保留最后一条 user 消息原文
+    last_user = None
+    if preserve_last_user and history and history[-1].get("role") == "user":
+        last_user = history[-1]
+        history = history[:-1]
+
     if not history:
-        return messages, ""
+        # 没有可压缩的历史，原样返回
+        out = []
+        if system:
+            out.append(system)
+        if last_user:
+            out.append(last_user)
+        return out, ""
 
     # 历史 → 纯文本
     history_lines = []
@@ -209,8 +238,51 @@ def _compact_messages(messages: list[dict], config: dict) -> tuple[list[dict], s
         "role": "user",
         "content": f"（对话历史摘要，请基于此继续回答）\n\n{summary}",
     })
+    if last_user:
+        new_messages.append(last_user)
 
     return new_messages, summary
+
+
+def _maybe_auto_compact(messages: list[dict], config: dict, ctx_window: int) -> bool:
+    """run_agent 前调用。token 超过 ctx_window 90% 则自动压缩。
+
+    压缩失败时回退到丢弃最早的历史消息（保留 system + 最后一条 user），
+    直到估算 token 降到 70% 以下。返回是否真的做了压缩。
+    """
+    threshold = int(ctx_window * 0.90)
+    tokens, _ = _estimate_tokens(messages)
+    if tokens <= threshold:
+        return False
+
+    stop = threading.Event()
+    spinner = threading.Thread(target=thinking_indicator, args=(stop,), daemon=True)
+    spinner.start()
+    try:
+        new_messages, _ = _compact_messages(messages, config, preserve_last_user=True)
+        messages.clear()
+        messages.extend(new_messages)
+        new_tokens, _ = _estimate_tokens(messages)
+        # 摘要后仍超限 → 继续丢最早历史
+        drop_threshold = int(ctx_window * 0.70)
+        while new_tokens > drop_threshold and len(messages) > 2:
+            # 丢掉 system 之后最早的一条
+            messages.pop(1)
+            new_tokens, _ = _estimate_tokens(messages)
+        print(f"{Style.muted('  [自动压缩对话历史]')} "
+              f"{Style.muted(f'{tokens:,} → {new_tokens:,} tokens')}")
+        return True
+    except Exception as e:
+        # 压缩失败：回退到丢弃最早历史
+        drop_threshold = int(ctx_window * 0.70)
+        while tokens > drop_threshold and len(messages) > 2:
+            messages.pop(1)
+            tokens, _ = _estimate_tokens(messages)
+        print(f"{Style.colored(f'  [自动压缩失败: {e}，已丢弃早期历史]', Style.YELLOW)}")
+        return True
+    finally:
+        stop.set()
+        spinner.join(timeout=0.5)
 
 
 def _interactive_skill_picker(skills: list[dict]) -> str | None:
@@ -543,6 +615,32 @@ def main():
             return mcp_manager.call_tool(server_name, tool_name, args)
         return execute_tool(name, args)
 
+    def run_turn(user_content: str) -> None:
+        """一轮对话：追加 user 消息 → 必要时自动压缩 → 跑 agent → 追加结果。
+
+        user_content 已是最终要发给模型的内容（普通对话是原文，skill 是
+        构造好的指令+参数）。自动压缩会保留最后这条 user 消息原文。
+        """
+        messages.append({"role": "user", "content": user_content})
+
+        # 超过上下文窗口 90% → 自动压缩（保留当前 user 消息）
+        _maybe_auto_compact(messages, config, ctx_window)
+
+        try:
+            stop = threading.Event()
+            spinner = threading.Thread(target=thinking_indicator, args=(stop,), daemon=True)
+            spinner.start()
+            try:
+                result = run_agent(messages, combined_tools, tool_executor=_tool_executor)
+            finally:
+                stop.set()
+                spinner.join(timeout=0.5)
+            print(f"\n{result}")
+            messages.append({"role": "assistant", "content": result})
+        except Exception as e:
+            print(f"\n  {Style.colored(f'[错误] {e}', Style.RED)}")
+            messages.pop()
+
     while True:
         try:
             user_input = _input_with_completion(all_cmds)
@@ -587,13 +685,13 @@ def main():
             if name is None:
                 continue
 
-            # 执行选中的 skill
+            # 构造 skill 指令 user 消息，复用正常对话路径执行
+            prompt = build_skill_prompt(name, "")
+            if prompt is None:
+                print(f"  {Style.colored(f'[错误] skill 不存在: {name}', Style.RED)}")
+                continue
             print(f"  {Style.command(f'执行 skill: {name}')}")
-            try:
-                result = run_skill(messages, name, "", combined_tools)
-                print(f"\n{result}")
-            except Exception as e:
-                print(f"\n  {Style.colored(f'[错误] {e}', Style.RED)}")
+            run_turn(prompt)
             continue
 
         # /kb 命令
@@ -685,40 +783,16 @@ def main():
                 continue
             skill_name = skill_parts[0]
             skill_args = user_input[len(skill_name) + 2:]
-            meta, _ = load_skill(skill_name)
-            if meta:
+            prompt = build_skill_prompt(skill_name, skill_args)
+            if prompt is not None:
                 print(f"  {Style.command(f'执行 skill: {skill_name}')}")
-                try:
-                    result = run_skill(messages, skill_name, skill_args, TOOLS)
-                    print(f"\n{result}")
-                except Exception as e:
-                    print(f"\n  {Style.colored(f'[错误] {e}', Style.RED)}")
+                run_turn(prompt)
                 continue
-            else:
-                print(f"  {Style.colored(f'[错误] 未知命令: {user_input}', Style.RED)}")
-                continue
+            print(f"  {Style.colored(f'[错误] 未知命令: {user_input}', Style.RED)}")
+            continue
 
         # 正常对话
-        messages.append({"role": "user", "content": user_input})
-
-        try:
-            # 启动 thinking 动画
-            stop = threading.Event()
-            spinner = threading.Thread(target=thinking_indicator, args=(stop,), daemon=True)
-            spinner.start()
-
-            try:
-                result = run_agent(messages, combined_tools, tool_executor=_tool_executor)
-            finally:
-                stop.set()
-                spinner.join(timeout=0.5)
-
-            # thinking 行已清除，直接打印结果
-            print(f"\n{result}")
-            messages.append({"role": "assistant", "content": result})
-        except Exception as e:
-            print(f"\n  {Style.colored(f'[错误] {e}', Style.RED)}")
-            messages.pop()
+        run_turn(user_input)
 
 
 if __name__ == "__main__":
