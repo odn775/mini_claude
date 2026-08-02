@@ -9,6 +9,7 @@ from .knowledge import build_index, get_index_info
 from .skills import list_skills, build_skill_prompt
 from .mcp_manager import MCPManager
 from .retry import with_retry
+from . import health
 from openai import OpenAI
 
 
@@ -362,6 +363,31 @@ def _interactive_skill_picker(skills: list[dict]) -> str | None:
             return None
 
 
+def _print_auto_diagnosis(e: Exception) -> None:
+    """异常自动诊断：归类疑似模块 + 体检有问题的项，附下一步建议。
+
+    只列有问题/警告的项，不刷屏；诊断本身失败时静默跳过，不影响主流程。
+    """
+    try:
+        suspected = health.classify_exception(e)
+        results = health.check_all()
+        bad = health.problems(results)
+    except Exception:
+        return
+
+    if not suspected and not bad:
+        return
+    print(f"\n  {Style.colored('诊断:', Style.YELLOW)}")
+    for item in suspected:
+        print(f"    {Style.highlight('疑似模块:')} {item['module']} — {item['reason']}")
+        print(f"      {Style.muted('建议:')} {item['suggestion']}")
+    for r in bad:
+        mark = {"ok": "OK", "warn": "WARN", "error": "ERR", "skip": "SKIP"}[r["status"]]
+        color = {"ok": Style.GREEN, "warn": Style.YELLOW,
+                 "error": Style.RED, "skip": Style.GRAY}[r["status"]]
+        print(f"    {Style.colored(mark, color)} {r['name']}: {Style.muted(r['detail'])}")
+
+
 def main():
     # ── 命令输入历史 ──
     _input_history: list[str] = []
@@ -377,6 +403,8 @@ def main():
             ("/skills", "交互式选择 skill"),
             ("/kb rebuild", "重建知识库索引"),
             ("/kb status", "查看知识库状态"),
+            ("/health", "检查各模块状态"),
+            ("/ping", "活体探测 API 可用性"),
         ]
         try:
             for s in list_skills():
@@ -585,10 +613,12 @@ def main():
     # ── MCP 初始化 ──
     mcp_tools = []
     mcp_manager = MCPManager()
+    health.set_mcp_manager(mcp_manager)
     try:
         mcp_tools = mcp_manager.start_all()
     except Exception as e:
         print(f"  {Style.colored(f'[MCP 初始化异常] {e}', Style.RED)}")
+        _print_auto_diagnosis(e)
 
     combined_tools = TOOLS + mcp_tools
     tool_count = len(TOOLS)
@@ -601,7 +631,9 @@ def main():
           f"{Style.command('/compact')} {Style.muted('压缩')}")
     print(f"  {Style.command('/tools')} {Style.muted('工具')}  "
           f"{Style.command('/skills')} {Style.muted('skill')}  "
-          f"{Style.command('/kb')} {Style.muted('知识库')}")
+          f"{Style.command('/kb')} {Style.muted('知识库')}  "
+          f"{Style.command('/health')} {Style.muted('体检')}  "
+          f"{Style.command('/ping')} {Style.muted('探测')}")
 
     ctx_window = _get_context_window(config["model"])
     messages = [{"role": "system", "content": _build_system_prompt(ctx_window)}]
@@ -639,6 +671,7 @@ def main():
             messages.append({"role": "assistant", "content": result})
         except Exception as e:
             print(f"\n  {Style.colored(f'[错误] {e}', Style.RED)}")
+            _print_auto_diagnosis(e)
             messages.pop()
 
     while True:
@@ -718,6 +751,31 @@ def main():
                 print(f"未知命令: /kb {parts[1]}")
             continue
 
+        # ── /health ──
+        if user_input == "/health":
+            print(f"\n  {Style.command('体检报告')} "
+                  f"{Style.muted('(静态检查 · 活体探测用 /ping)')}")
+            for r in health.check_all():
+                mark = {"ok": "OK  ", "warn": "WARN", "error": "ERR ",
+                        "skip": "SKIP"}[r["status"]]
+                color = {"ok": Style.GREEN, "warn": Style.YELLOW,
+                         "error": Style.RED, "skip": Style.GRAY}[r["status"]]
+                print(f"  {Style.colored(mark, color)} {r['name']:<10} "
+                      f"{Style.muted(r['detail'])}")
+            continue
+
+        # ── /ping ──
+        if user_input == "/ping":
+            print(f"\n  {Style.command('/ping')} "
+                  f"{Style.muted('活体探测（消耗少量 token）')}")
+            for r in health.ping(config):
+                mark = "OK " if r["ok"] else "ERR"
+                color = Style.GREEN if r["ok"] else Style.RED
+                ms = f"{r['ms']}ms"
+                print(f"  {Style.colored(mark, color)} {r['name']:<10} "
+                      f"{Style.muted(r['detail'])}  {Style.muted(ms)}")
+            continue
+
         # ── /context ──
         if user_input == "/context":
             tokens, breakdown = _estimate_tokens(messages)
@@ -785,6 +843,7 @@ def main():
             skill_args = user_input[len(skill_name) + 2:]
             prompt = build_skill_prompt(skill_name, skill_args)
             if prompt is not None:
+                print(f"\n  {Style.command('You:')} /{skill_name} {skill_args}".rstrip())
                 print(f"  {Style.command(f'执行 skill: {skill_name}')}")
                 run_turn(prompt)
                 continue
@@ -792,6 +851,7 @@ def main():
             continue
 
         # 正常对话
+        print(f"\n  {Style.command('You:')} {user_input}")
         run_turn(user_input)
 
 

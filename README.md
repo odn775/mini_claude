@@ -28,7 +28,7 @@
 - 使用 [DashScope API](https://help.aliyun.com/zh/model-studio/)（通义千问 Qwen 系列模型）
 - 兼容 OpenAI SDK 调用格式
 
-### 7 个内置工具
+### 8 个内置工具
 | 工具 | 作用 |
 |------|------|
 | `grep_search` | 在文件中搜索匹配正则的内容行 |
@@ -38,6 +38,7 @@
 | `run_bash` | 执行 shell 命令 |
 | `search_knowledge` | 语义搜索本地知识库（RAG） |
 | `run_skill` | 加载并执行 skill 指令 |
+| `check_health` | 检查各模块状态，出错时定位问题模块 |
 
 ### RAG 知识库
 
@@ -107,6 +108,25 @@
 - **"thinking... 已思考 X 秒"** 动画（后台线程，AI 思考时实时更新）
 - **终端兼容** — ANSI 光标定位方案已针对 Windows Terminal 优化，避免下拉框残留和视口越界崩溃
 
+### 检测 / 健康检查模块（health.py）
+
+问题定位与状态检测的双通道机制，纯本地、零埋点、不侵入其他模块。
+
+**三个入口：**
+- `/health` — 全静态体检，零成本秒回。检查项：config（文件存在/可解析/key 已填）、api（base_url + key 静态校验）、mcp（配置 vs 实际连接数）、knowledge（索引存在/块数/索引过期提醒）、tools（定义与实现一一对应）、skills（可解析/数量/超限截断）
+- `/ping` — 活体探测（消耗少量 token），三探针全跑、逐条独立报告延迟：
+  - `net`：TCP+TLS 可达 `base_url`（0 token）
+  - `llm`：最小 `chat.completions` 请求验证 key/模型/额度
+  - `embedding`：单文本调 embedding API 验证额度
+- `check_health` 工具（第 8 个内置工具）— 模型在对话中收到工具错误字符串时，可自调此工具做差分诊断，定位问题模块
+
+**异常自动诊断：** main.py 在捕获异常时自动触发（run_turn 的 LLM 调用 + MCP 初始化两处）。按异常类型归类疑似模块（连接失败/超时 → 网络层、限流 → 配额、鉴权 → config…），并列出体检中不健康的模块，每条附下一步建议（如「运行 /ping 验证网络」）。全部健康时只打一行提示，不刷屏。
+
+**设计要点：**
+- 每个 check 自带 try/except，某模块依赖缺失时降级为「无法检查」而非拖垮整表
+- MCP 连接状态通过 `set_mcp_manager()` 注入共享，命令路径与工具路径看到的是同一份状态
+- 只读检查，不写文件、不发请求（除 `/ping`）
+
 ### 配置系统
 - 配置文件：`~/.mini_claude/config.json`
 - 环境变量覆盖：`DASHSCOPE_API_KEY`、`MINI_CLAUDE_MODEL`、`MINI_CLAUDE_BASE_URL`、`MINI_CLAUDE_MAX_TOKENS`
@@ -165,11 +185,12 @@ mini_claude/
 ├── __init__.py
 ├── agent.py        # ReAct 循环核心
 ├── config.py       # 配置读取（文件 + 环境变量）
+├── health.py       # 检测模块（/health、/ping、check_health 工具、异常诊断）
 ├── knowledge.py    # RAG 知识库（切块、embedding、FAISS 检索）
 ├── main.py         # REPL 入口（命令处理、交互界面）
 ├── mcp_manager.py  # MCP 服务器管理（启动、工具发现、调用、关闭）
 ├── skills.py       # Skills 系统（发现、解析、执行）
-└── tools.py        # 7 个工具的定义和实现
+└── tools.py        # 8 个工具的定义和实现
 requirements.txt
 miniclaude          # shell 启动脚本
 miniclaude.cmd      # Windows 启动脚本
@@ -188,6 +209,8 @@ README.md
 | `/skills` | 交互式选择并执行 skill |
 | `/kb rebuild` | 重建知识库索引 |
 | `/kb status` | 查看知识库状态 |
+| `/health` | 检查各模块状态（静态体检） |
+| `/ping` | 活体探测 API 可用性（net/llm/embedding） |
 | `<skill_name>` | 直接运行 skill |
 
 ## 依赖

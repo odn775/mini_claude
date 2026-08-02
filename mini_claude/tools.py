@@ -152,6 +152,22 @@ TOOLS = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "check_health",
+            "description": (
+                "检查各模块状态（config/api/mcp/knowledge/tools/skills），"
+                "返回各模块的健康状况。当某个工具调用报错或功能异常时，"
+                "用此工具定位问题出在哪个模块。"
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": [],
+            },
+        },
+    },
 ]
 
 
@@ -299,6 +315,17 @@ def run_skill_tool(skill_name: str) -> str:
     return result if result else f"skill {skill_name} 无内容"
 
 
+def check_health() -> str:
+    """检查各模块状态，返回纯文本报告供模型读取（零成本、纯本地）。"""
+    from . import health
+    results = health.check_all()
+    lines = []
+    for r in results:
+        mark = {"ok": "OK", "warn": "WARN", "error": "ERR", "skip": "SKIP"}[r["status"]]
+        lines.append(f"[{mark}] {r['name']}: {r['detail']}")
+    return "\n".join(lines) if lines else "体检无结果"
+
+
 def _list_skill_extra_files(skill_dir: str) -> list[str]:
     """列出 skill 目录下除 SKILL.md 外的所有文件（相对路径）。"""
     extras = []
@@ -327,6 +354,7 @@ TOOL_EXECUTORS = {
     "grep_search": grep_search,
     "search_knowledge": search_knowledge,
     "run_skill": run_skill_tool,
+    "check_health": check_health,
 }
 
 
