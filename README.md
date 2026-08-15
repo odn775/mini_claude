@@ -45,18 +45,32 @@
 **索引构建**
 - `multimodal-embedding-v1`（阿里百炼）生成向量（1024 维）
 - FAISS IndexFlatL2 本地索引，无需外部服务
-- 自动按段落/句切块（2000 字/块），支持中英文
+- 自动按段落/句切块（500 字/块，50 字重叠），支持中英文
 - 动态批量 + 断点续传：中途中断不丢进度，下次重建从断点继续
 - 命令：`/kb rebuild` 建索引，`/kb status` 查看状态
 
-**检索管线**（三阶段）
+**检索管线**（多 query 改写 + 混合检索 + RRF 融合）
 ```
-用户提问 → ① LLM 查询改写 → ② embedding 粗筛(20条) + 关键词补漏
-         → ③ 合并去重 → ④ gte-rerank-v2 精排 → 返回 Top-5
+用户提问 → ① 多 query 改写 → ② 每个变体双通道检索 → ③ RRF 融合去重 → 返回 Top-5
+                    ┌─ 稠密：embedding → FAISS 粗筛（20条/变体）
+                    └─ 稀疏：jieba 分词 → BM25（20条/变体）
 ```
-- **查询改写**：LLM 将自然语言转为密集检索关键词，提取人名/地名/事件
-- **混合检索**：语义搜索 + 子串关键词匹配，互补补漏
-- **重排序**：`gte-rerank-v2` 对候选文档精排，显著提升命中精度
+- **多 query 改写**：LLM 一次调用产出 2 个变体（① 同义改写 ② 关键词密集短语），加原始 query 共 3 条参与检索
+- **混合检索**：每条变体同时跑 FAISS 稠密 + BM25 稀疏，语义与精确关键词互补
+- **RRF 融合**：6 个排序列表按 Reciprocal Rank Fusion（k=60）融合，无需归一化不同打分尺度
+- **失败兜底**：改写失败退化为只用原始 query；单个变体 embedding 失败时丢弃该变体，其余照常
+
+**检索效果测试**（2026-08-15，78 块语料，14 条黄金 query，答案短语经语料校验）
+
+| Recall@K | 新管线（多query+BM25+RRF） | 旧管线（单次改写+子串计数） |
+|---|---|---|
+| @1 | 28.6% | 7.1% |
+| @3 | 57.1% | 21.4% |
+| @5 | **71.4%** | 21.4% |
+
+- 新管线 **Recall@5 达 71.4%，为旧管线的 3.3 倍**，专名/长问句召回显著改善
+- 未命中的 4 条集中在**表内数值**（如结晶度 69%、回潮率 13.00%）与**泛化提问**（如"这篇论文主要研究什么"）
+- 评估脚本 `eval_recall.py`（黄金集 + 新旧管线对比），旧管线快照见 `compare_retrieval.py`
 
 ### Skills 技能系统
 - YAML frontmatter 格式的 SKILL.md 文件存放在 `~/.mini_claude/skills/<name>/`
@@ -219,6 +233,8 @@ README.md
 - openai ≥ 1.0.0
 - faiss-cpu ≥ 1.8.0
 - numpy ≥ 1.24
+- jieba ≥ 0.42.1（BM25 中文分词）
+- rank-bm25 ≥ 0.2.2（BM25 稀疏检索）
 - requests
 - mcp ≥ 1.28
 
@@ -238,3 +254,4 @@ export MINI_CLAUDE_MODEL="your-model-name"
 - 无流式输出（Streaming）
 - 知识库索引需手动重建（`/kb rebuild`）
 - MCP 集成：仅支持 stdio transport，仅处理 text 类型内容（image/resource 类型无法传给模型）
+- **Windows 系统代理 TLS 拦截**：若代理工具（如 Clash/v2rayN）对 API 域名做 TLS 中间人，Python 请求（requests/httpx）会报 `SSL: CERTIFICATE_VERIFY_FAILED`（curl 正常）。处理：为 dashscope 域名设置 `NO_PROXY=dashscope.aliyuncs.com,aliyuncs.com` 绕过，或在代理中信任其证书

@@ -5,24 +5,25 @@ import requests
 
 
 EMBEDDING_MODEL = "multimodal-embedding-v1"
-DEFAULT_CHUNK_SIZE = 2000
+DEFAULT_CHUNK_SIZE = 500
+DEFAULT_OVERLAP = 50
 # ── 检索参数 ──
-COARSE_TOP_K = 20   # embedding 粗筛条数（新策略：给 rerank 喂更大候选池）
-FINAL_TOP_K = 5     # rerank 后最终返回条数
-KEYWORD_TOP_K = 10  # 关键词检索补漏条数
+COARSE_TOP_K = 20   # 每个 query 变体 embedding 粗筛条数
+BM25_TOP_K = 20     # 每个 query 变体 BM25 召回条数
+FINAL_TOP_K = 5     # 最终返回条数
+QUERY_VARIANTS = 2  # 改写出的 query 变体数量（不含原始 query）
+RRF_K = 60          # RRF 融合常数
 MAX_BATCH_CHARS = 10000  # multimodal-embedding API 单批总字符上限 10240，留余量
 
-RERANK_MODEL = "gte-rerank-v2"
 _EMBEDDING_URL = "https://dashscope.aliyuncs.com/api/v1/services/embeddings/multimodal-embedding/multimodal-embedding"
-_RERANK_URL = "https://dashscope.aliyuncs.com/api/v1/services/rerank/text-rerank/text-rerank"
 
 
 # ── 文本切块 ──
 
-def split_chunks(text: str, chunk_size: int = DEFAULT_CHUNK_SIZE) -> list[str]:
-    """按段落边界将文本切分成大小均匀的块。"""
+def split_chunks(text: str, chunk_size: int = DEFAULT_CHUNK_SIZE, overlap: int = DEFAULT_OVERLAP) -> list[str]:
+    """按段落边界将文本切分成大小均匀的块，相邻块之间有 overlap 字符重叠。"""
     paragraphs = re.split(r"\n\n+", text)
-    chunks = []
+    raw_chunks = []
     current = ""
 
     for para in paragraphs:
@@ -33,7 +34,7 @@ def split_chunks(text: str, chunk_size: int = DEFAULT_CHUNK_SIZE) -> list[str]:
             current += para + "\n\n"
         else:
             if current.strip():
-                chunks.append(current.strip())
+                raw_chunks.append(current.strip())
             current = ""
             # 长段落按句切
             if len(para) > chunk_size:
@@ -47,23 +48,37 @@ def split_chunks(text: str, chunk_size: int = DEFAULT_CHUNK_SIZE) -> list[str]:
                         acc += s
                     else:
                         if acc.strip():
-                            chunks.append(acc.strip())
+                            raw_chunks.append(acc.strip())
                         # 单句超大则强制截断
                         if len(s) > chunk_size:
                             for i in range(0, len(s), chunk_size):
-                                chunks.append(s[i:i + chunk_size])
+                                raw_chunks.append(s[i:i + chunk_size])
                             acc = ""
                         else:
                             acc = s
                 if acc.strip():
-                    chunks.append(acc.strip())
+                    raw_chunks.append(acc.strip())
             else:
-                chunks.append(para)
+                raw_chunks.append(para)
 
     if current.strip():
-        chunks.append(current.strip())
+        raw_chunks.append(current.strip())
 
-    return [c for c in chunks if c]
+    # ── 添加 overlap ──
+    if overlap <= 0:
+        return [c for c in raw_chunks if c]
+
+    overlapped = []
+    for i, chunk in enumerate(raw_chunks):
+        if not chunk:
+            continue
+        if i > 0:
+            prev = raw_chunks[i - 1]
+            tail = prev[-overlap:] if len(prev) >= overlap else prev
+            chunk = tail + "\n\n" + chunk
+        overlapped.append(chunk)
+
+    return overlapped
 
 
 # ── Embedding ──
@@ -130,7 +145,7 @@ def build_index(config: dict, knowledge_dir: str, index_dir: str) -> str:
         except Exception:
             continue
 
-        chunks = split_chunks(content)
+        chunks = split_chunks(content, chunk_size=DEFAULT_CHUNK_SIZE, overlap=DEFAULT_OVERLAP)
         for i, chunk in enumerate(chunks):
             all_chunks.append({
                 "content": chunk,
@@ -208,12 +223,14 @@ def build_index(config: dict, knowledge_dir: str, index_dir: str) -> str:
     return f"索引构建完成: {len(files)} 个文件 → {len(all_chunks)} 个文本块 → {dim} 维向量"
 
 
-# ── 检索（新策略：改写 → 粗筛+关键词 → 合并 → Rerank → Top-K）──
+# ── 检索（多 query 改写 → 稠密 + 稀疏双通道 → RRF 融合 → Top-K）──
 
-def _rewrite_query(query: str, config: dict) -> str:
-    """【新策略1：查询改写】
-    用 LLM 将用户自然语言转成密集检索关键词。
-    提取人名、地名、事件、物品等核心实体，空格分隔。
+def _multi_query_rewrite(query: str, config: dict) -> list[str]:
+    """多 query 改写：用 LLM 生成 2 个检索变体。
+
+    - 变体1：同义改写，换说法但保持语义，利于稠密检索。
+    - 变体2：关键词密集的检索式短语，提取核心实体，利于 BM25 稀疏检索。
+    返回不含原始 query 的变体列表（0~2 个）。改写失败返回空，由调用方退化。
     """
     from openai import OpenAI
     client = OpenAI(
@@ -225,64 +242,77 @@ def _rewrite_query(query: str, config: dict) -> str:
         messages=[{
             "role": "system",
             "content": (
-                "你是检索查询改写助手。将用户的问题转成密集的搜索关键词，"
-                "提取出人名、地名、事件、物品、章节等核心实体，用空格分隔。"
-                "只输出关键词，不要解释。"
+                "你是检索查询改写助手。把用户的问题改写成 2 个不同的检索查询变体，"
+                "每行一个，只输出两行，不要编号、不要解释。\n"
+                "第 1 行：同义改写，换一种说法但保持语义一致，写成自然的问句或陈述句。\n"
+                "第 2 行：关键词密集的检索式短语，提取人名、地名、事件、物品、章节等核心实体，"
+                "写成紧凑短语（如「韩立 南宫婉 结丹」），不要修饰词。"
             ),
         }, {
             "role": "user",
             "content": query,
         }],
-        max_tokens=100,
-        temperature=0.1,
+        max_tokens=200,
+        temperature=0.3,
     )
-    return resp.choices[0].message.content.strip()
+    text = (resp.choices[0].message.content or "").strip()
+    variants = []
+    for line in text.splitlines():
+        line = _clean_variant(line)
+        if line:
+            variants.append(line)
+        if len(variants) >= QUERY_VARIANTS:
+            break
+    return variants
 
 
-def _keyword_search(query_keywords: str, chunks: list[dict], top_k: int = KEYWORD_TOP_K) -> list[dict]:
-    """【新策略2：混合检索-关键词】
-    在内存 chunks 中做子串匹配，补 embedding 可能遗漏的精确人名/地名匹配。
-    用改写后的关键词逐项命中计数，不需要分词库。
-    """
-    terms = [t.strip() for t in query_keywords.replace("，", " ").replace(",", " ").split() if t.strip()]
-    if not terms:
+def _clean_variant(line: str) -> str:
+    """去掉模型输出行首的编号/列表符号（如 "1." "-" "•"）。"""
+    line = line.strip()
+    line = re.sub(r"^[\d\-\*••▪]+\s*[\.、．\))]?\s*", "", line)
+    return line.strip()
+
+
+def _build_bm25(chunks: list[dict]):
+    """现场构建 BM25 索引：jieba 分词后喂给 rank_bm25。"""
+    import jieba
+    from rank_bm25 import BM25Okapi
+
+    tokenized_docs = [list(jieba.cut(c["content"])) for c in chunks]
+    return BM25Okapi(tokenized_docs)
+
+
+def _bm25_search(bm25, query: str, chunks: list[dict], top_k: int = BM25_TOP_K) -> list[dict]:
+    """用 BM25 对 query 打分，返回 top_k 个 {index} 命中（按分数降序）。"""
+    import jieba
+
+    tokens = [t for t in jieba.cut(query) if t.strip()]
+    if not tokens:
         return []
 
-    scored = []
-    for i, chunk in enumerate(chunks):
-        score = sum(chunk["content"].count(t) for t in terms)
-        if score > 0:
-            scored.append((i, score))
-
-    scored.sort(key=lambda x: x[1], reverse=True)
-    return [{"index": idx, "score": score} for idx, score in scored[:top_k]]
+    scores = bm25.get_scores(tokens)
+    order = [i for i in range(len(scores)) if scores[i] > 0]
+    order.sort(key=lambda i: scores[i], reverse=True)
+    return [{"index": i} for i in order[:top_k]]
 
 
-def _rerank(query: str, documents: list[str], config: dict, top_n: int) -> list[dict]:
-    """【新策略3：Rerank 精排】
-    用 gte-rerank-v2 对候选文档重新打分排序。
+def _rrf_fuse(ranked_lists: list[list[dict]], k: int = RRF_K) -> dict[int, float]:
+    """单层 RRF：把多个排序列表（每项含 index）融合成 {index: 分数}。
+
+    score = Σ 1/(k + rank)，对稠密/稀疏两种打分尺度鲁棒，无需归一化。
     """
-    headers = {
-        "Authorization": f"Bearer {config['api_key']}",
-        "Content-Type": "application/json",
-    }
-    body = {
-        "model": RERANK_MODEL,
-        "input": {
-            "query": query,
-            "documents": documents,
-        },
-        "parameters": {"top_n": min(top_n, len(documents))},
-    }
-    resp = requests.post(_RERANK_URL, headers=headers, json=body, timeout=30)
-    resp.raise_for_status()
-    data = resp.json()
-    return data["output"]["results"]
+    scores: dict[int, float] = {}
+    for lst in ranked_lists:
+        for rank, item in enumerate(lst):
+            idx = item["index"]
+            scores[idx] = scores.get(idx, 0.0) + 1.0 / (k + rank)
+    return scores
 
 
 def search(query: str, config: dict, index_dir: str, top_k: int = FINAL_TOP_K) -> list[dict]:
     """【检索管线】
-    ① 查询改写 → ② embedding 粗筛 + ③ 关键词补漏 → ④ 合并去重 → ⑤ Rerank → Top-K 返回。
+    ① 多 query 改写 → ② 每个变体跑稠密(FAISS) + 稀疏(BM25) → ③ 单层 RRF 融合 → Top-K。
+    任一环节失败都会降级：改写失败只用原 query，单变体失败丢弃该变体。
     """
     import numpy as np
     import faiss
@@ -297,67 +327,55 @@ def search(query: str, config: dict, index_dir: str, top_k: int = FINAL_TOP_K) -
     with open(chunks_path, "r", encoding="utf-8") as f:
         chunks = json.load(f)
 
-    # ── ① 查询改写 ──
+    # ── ① 多 query 改写（失败则退化只用原始 query）──
+    queries = [query]
     try:
-        keywords = _rewrite_query(query, config)
+        for v in _multi_query_rewrite(query, config):
+            v = v.strip()
+            if v and v != query and v not in queries:
+                queries.append(v)
     except Exception:
-        keywords = query  # 改写失败则退化为原 query
+        pass  # 改写失败：仅用原始 query
 
-    # ── ② Embedding 粗筛（Top-20） ──
-    query_embedding = _get_embedding([query], config)[0]
-    query_vec = np.array([query_embedding], dtype=np.float32)
-    distances, indices = index.search(query_vec, min(COARSE_TOP_K, len(chunks)))
+    # ── ② BM25 现场构建 ──
+    bm25 = _build_bm25(chunks)
 
-    # ── ③ 关键词补漏 ──
-    kw_hits = _keyword_search(keywords, chunks)
+    # ── ③ 每个变体跑双通道 ──
+    ranked_lists: list[list[dict]] = []
+    for q in queries:
+        # 稠密通道
+        try:
+            q_emb = _get_embedding([q], config)[0]
+            q_vec = np.array([q_emb], dtype=np.float32)
+            distances, indices = index.search(q_vec, min(COARSE_TOP_K, len(chunks)))
+            dense_list = [
+                {"index": int(idx)}
+                for dist, idx in zip(distances[0], indices[0])
+                if 0 <= idx < len(chunks)
+            ]
+            ranked_lists.append(dense_list)
+        except Exception:
+            pass  # 该变体 embedding 失败，丢弃
 
-    # ── ④ 合并去重 ──
-    seen: set[int] = set()
-    merged_items: list[dict] = []       # 候选文档（content/source）
-    merged_indices: list[int] = []      # 对应的原 chunks 索引
+        # 稀疏通道
+        sparse_list = _bm25_search(bm25, q, chunks)
+        if sparse_list:
+            ranked_lists.append(sparse_list)
 
-    for dist, idx in zip(distances[0], indices[0]):
-        if 0 <= idx < len(chunks) and idx not in seen:
-            seen.add(idx)
-            merged_indices.append(idx)
-            merged_items.append({"content": chunks[idx]["content"], "source": chunks[idx]["source"]})
-
-    for kw in kw_hits:
-        if kw["index"] not in seen:
-            seen.add(kw["index"])
-            merged_indices.append(kw["index"])
-            merged_items.append({"content": chunks[kw["index"]]["content"], "source": chunks[kw["index"]]["source"]})
-
-    if not merged_items:
+    # ── ④ RRF 融合 → Top-K ──
+    fused = _rrf_fuse(ranked_lists)
+    if not fused:
         return []
 
-    # ── ⑤ Rerank 精排 ──
-    documents = [item["content"] for item in merged_items]
-    try:
-        rerank_results = _rerank(query, documents, config, top_n=min(top_k, len(documents)))
-    except Exception:
-        rerank_results = None
-
-    # 构建最终结果
-    final = []
-    if rerank_results:
-        for r in rerank_results[:top_k]:
-            ri = r["index"]
-            final.append({
-                "content": merged_items[ri]["content"],
-                "source": merged_items[ri]["source"],
-                "relevance": r.get("relevance_score", 0.0),
-            })
-    else:
-        # Rerank 不可用则直接返回合并后的前 top_k
-        for item in merged_items[:top_k]:
-            final.append({
-                "content": item["content"],
-                "source": item["source"],
-                "relevance": 0.0,
-            })
-
-    return final
+    final_idx = sorted(fused, key=fused.get, reverse=True)[:top_k]
+    return [
+        {
+            "content": chunks[i]["content"],
+            "source": chunks[i]["source"],
+            "relevance": fused[i],
+        }
+        for i in final_idx
+    ]
 
 
 # ── 状态查询 ──
