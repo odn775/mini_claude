@@ -102,6 +102,44 @@
 - `/context` — 查看当前上下文使用情况（估算 token、消息数、角色分布）
 - `/compact` — 用 LLM 压缩对话历史为摘要，释放上下文空间
 
+### Web 聊天界面（FastAPI）
+
+CLI 之外，还提供浏览器聊天界面，与 CLI 共存、共享同一套核心逻辑（agent / tools / RAG / skills / MCP / health）。
+
+**启动：**
+
+```bash
+python -m mini_claude.web
+# 打开 http://127.0.0.1:8000
+```
+
+**界面**（参考 DeepSeek harness 的极简风格，去掉了品牌标识）：
+- 顶栏「新会话」按钮 + 左侧「工作区」会话列表（支持搜索、删除）
+- 欢迎页「有什么可以帮你的？」+ 建议问题快捷入口
+- 消息区：用户右侧浅灰气泡，助手左侧 Markdown 渲染（含代码高亮，CDN 引入）
+- 工具调用以折叠卡片展示（工具名 + 状态，点击展开参数和结果）
+- 输入框：绿色圆形发送按钮 + 只读模型名 + 「允许执行命令」开关
+
+**架构要点：**
+- `stream_agent` 用 `stream=True` 逐 token 流式请求，产出 `text_delta`（增量文本）+ `tool_call` / `tool_result` / `text`（全文）事件，SSE 推给前端实时渲染；CLI 继续用 `run_agent` 包装函数，行为不变
+- 会话状态存内存（重启即失），每会话一把锁，同一会话同时只跑一个 turn
+- 客户端断开不中止对话，turn 照常跑完并写回历史
+- MCP 服务器在服务启动时拉起、退出时关闭（与 CLI 一致）
+- `run_bash` 受「允许执行命令」开关控制，关闭时告知模型改用非命令手段
+
+**REST API：**
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/` | 页面 |
+| GET | `/api/config` | 当前模型配置（不返回 key） |
+| GET | `/api/health` | 各模块体检结果 |
+| GET | `/api/sessions` | 会话列表 |
+| POST | `/api/sessions` | 新建会话 |
+| GET | `/api/sessions/{id}` | 会话详情（含历史消息） |
+| DELETE | `/api/sessions/{id}` | 删除会话 |
+| POST | `/api/chat` | 发消息，SSE 流式返回事件 |
+
 ### 交互体验
 - **智能命令面板** — 输入 `/` 弹出下拉框，实时过滤可执行命令（按前缀匹配）
   ```
@@ -197,14 +235,17 @@ alias miniclaude="python -m mini_claude.main"
 ```
 mini_claude/
 ├── __init__.py
-├── agent.py        # ReAct 循环核心
+├── agent.py        # ReAct 循环核心（stream_agent 事件流 + run_agent 兼容包装）
 ├── config.py       # 配置读取（文件 + 环境变量）
 ├── health.py       # 检测模块（/health、/ping、check_health 工具、异常诊断）
 ├── knowledge.py    # RAG 知识库（切块、embedding、FAISS 检索）
 ├── main.py         # REPL 入口（命令处理、交互界面）
 ├── mcp_manager.py  # MCP 服务器管理（启动、工具发现、调用、关闭）
 ├── skills.py       # Skills 系统（发现、解析、执行）
-└── tools.py        # 8 个工具的定义和实现
+├── tools.py        # 8 个工具的定义和实现
+├── web.py          # FastAPI 入口（会话层 + SSE + REST API）
+└── static/
+    └── index.html  # 浏览器聊天界面（单文件 + CDN）
 requirements.txt
 miniclaude          # shell 启动脚本
 miniclaude.cmd      # Windows 启动脚本
@@ -251,7 +292,7 @@ export MINI_CLAUDE_MODEL="your-model-name"
 
 - 无记忆/持久化存储
 - 无多 Agent 协作
-- 无流式输出（Streaming）
+- CLI 无流式输出（Web 版支持 token 流式 + 工具事件流）
 - 知识库索引需手动重建（`/kb rebuild`）
 - MCP 集成：仅支持 stdio transport，仅处理 text 类型内容（image/resource 类型无法传给模型）
 - **Windows 系统代理 TLS 拦截**：若代理工具（如 Clash/v2rayN）对 API 域名做 TLS 中间人，Python 请求（requests/httpx）会报 `SSL: CERTIFICATE_VERIFY_FAILED`（curl 正常）。处理：为 dashscope 域名设置 `NO_PROXY=dashscope.aliyuncs.com,aliyuncs.com` 绕过，或在代理中信任其证书
