@@ -21,6 +21,7 @@ def stream_agent(
       {"type": "tool_call",  "name", "arguments", "call_id"}  模型要调用工具
       {"type": "tool_result", "name", "call_id", "content"}   工具执行结果
       {"type": "text", "content"}                             最终回答全文 / 终止说明
+      {"type": "usage", "input_tokens", "output_tokens", "cached_tokens"}  本次 run 累计用量（最后产出，含缓存命中）
 
     用 stream=True 逐 token 流式请求，text_delta 实时产出；工具调用分片累加。
 
@@ -40,6 +41,9 @@ def stream_agent(
     if tool_executor is None:
         tool_executor = execute_tool
 
+    # 累计本次 run 的 token 用量：工具循环里每次 LLM 调用各有一份 usage，逐轮相加
+    usage_total = {"input_tokens": 0, "output_tokens": 0, "cached_tokens": 0}
+
     for iteration in range(MAX_TOOL_ITERATIONS):
         response = with_retry(lambda: client.chat.completions.create(
             model=config["model"],
@@ -47,14 +51,19 @@ def stream_agent(
             tools=tools,
             max_tokens=config["max_tokens"],
             stream=True,
+            # usage（含缓存命中）只在最后一个 chunk 给出，且该 chunk 的 choices 为空
+            stream_options={"include_usage": True},
         ))
 
         # 流式累加：content 片段 + 各工具调用的分片（id/name 首包给全，arguments 分段拼）
         content_parts: list[str] = []
         tool_acc: dict[int, dict] = {}
         seen_choices = False
+        usage_last = None  # 本轮流式响应的 usage（覆盖式保存，兼容逐 chunk 都带 usage 的非标准实现）
 
         for chunk in response:
+            if chunk.usage is not None:
+                usage_last = chunk.usage
             if not chunk.choices:
                 continue
             seen_choices = True
@@ -74,6 +83,14 @@ def stream_agent(
                             acc["name"] += tc.function.name
                         if tc.function.arguments:
                             acc["arguments"] += tc.function.arguments
+
+        # 累加本轮 usage（prompt_tokens_details.cached_tokens 为缓存命中 token，可能缺失）
+        if usage_last is not None:
+            usage_total["input_tokens"] += usage_last.prompt_tokens or 0
+            usage_total["output_tokens"] += usage_last.completion_tokens or 0
+            ptd = usage_last.prompt_tokens_details
+            if ptd and ptd.cached_tokens:
+                usage_total["cached_tokens"] += ptd.cached_tokens
 
         # 模型要调用工具
         if tool_acc:
@@ -112,15 +129,16 @@ def stream_agent(
 
         # 模型返回最终文本（完全没有返回时给提示，行为与旧版一致）
         if not seen_choices:
-            yield {"type": "text", "content": "[错误] 模型未返回任何结果"}
-            return
-        yield {"type": "text", "content": "".join(content_parts)}
-        return
+            final_text = "[错误] 模型未返回任何结果"
+        else:
+            final_text = "".join(content_parts)
+        break
+    else:
+        final_text = f"[警告] 达到最大工具调用次数 ({MAX_TOOL_ITERATIONS})，已停止"
 
-    yield {
-        "type": "text",
-        "content": f"[警告] 达到最大工具调用次数 ({MAX_TOOL_ITERATIONS})，已停止",
-    }
+    yield {"type": "text", "content": final_text}
+    # usage 事件最后产出：本次 run 的累计 token 用量与缓存命中
+    yield {"type": "usage", **usage_total}
 
 
 def run_agent(
