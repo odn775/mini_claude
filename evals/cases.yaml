@@ -1,0 +1,116 @@
+# mini_claude 工具调用正确率测试用例集 (golden set)
+#
+# 每个 case:
+#   id:        唯一标识，也用于报告
+#   prompt:    从用户角度发出的自然语言请求（作为 system+user 消息喂给模型）
+#   tool:      期望模型调用的工具名（算法只取“首个 tool_call 的名字”判定）
+#   required:  期望必填参数 ({"字段名": 类型})，只做“存在且非空”的完整性校验，不校验具体值
+#   note:      可选说明（组合场景/边界）
+#
+# 评分口径：工具选择正确 = 首个 tool_call 名 == tool；参数完整 = required 各字段均存在且非空。
+# 运行器在捕获到首个 tool_call 事件后立即 break，确保每用例最多触发 1 次 LLM 调用。
+
+cases:
+  # ── read_file ──
+  - id: read_file_basic
+    prompt: 请把文件 D:\tmp\notes.txt 的内容读给我
+    tool: read_file
+    required: { path: string }
+    expect_args:
+      path: { contains: "notes.txt" }
+  - id: read_file_missing_path
+    prompt: 帮我看一下我的项目配置文件内容
+    tool: read_file
+    required: { path: string }
+    note: 上下文无给定路径，模型应主动询问或给出某合理路径——这里校验的是它是否选了 read_file 并至少传了 path
+
+  # ── write_file ──
+  - id: write_file_basic
+    prompt: 请把这段文本写入 D:\tmp\hello.txt：你好，世界
+    tool: write_file
+    required: { path: string, content: string }
+    expect_args:
+      path: { contains: "hello.txt" }
+      content: { contains: "你好" }
+
+  # ── run_bash ──
+  - id: run_bash_current_dir
+    prompt: 用命令看看当前目录下有哪些文件
+    tool: run_bash
+    required: { command: string }
+    expect_args:
+      command: { contains: "ls" }
+  - id: run_bash_version
+    prompt: 帮我执行 python --version
+    tool: run_bash
+    required: { command: string }
+    expect_args:
+      command: { contains: "python" }
+
+  # ── glob_search ──
+  - id: glob_search_python
+    prompt: 用 glob 找出所有 .py 文件
+    tool: glob_search
+    required: { pattern: string }
+    expect_args:
+      pattern: { contains: ".py" }
+
+  # ── grep_search ──
+  - id: grep_search_error
+    prompt: 在 src 目录里搜一下所有出现 "Error" 的代码行
+    tool: grep_search
+    required: { pattern: string }
+    expect_args:
+      pattern: { contains: "Error" }
+
+  # ── search_knowledge ──
+  - id: search_knowledge_doc
+    prompt: 在我的本地知识库里查一下项目部署规范相关的内容
+    tool: search_knowledge
+    required: { query: string }
+    expect_args:
+      query: { contains: "部署" }
+
+  # ── run_skill ──
+  - id: run_skill_translate
+    prompt: 给我加载一下 translate 这个 skill 的指令
+    tool: run_skill
+    required: { skill_name: string }
+    expect_args:
+      skill_name: "translate"
+
+  # ── check_health ──
+  - id: check_health_trouble
+    prompt: 有个工具调用报错了，帮我检查一下是哪个模块出了问题
+    tool: check_health
+    required: {}
+
+  # ── 多工具组合场景（判定仍基于首个 tool_call）──
+  - id: combo_read_then_grep
+    prompt: 先读取 D:\proj\main.py，然后在里面搜一下哪个位置出现了 "TODO"
+    tool: read_file
+    required: { path: string }
+    note: 期望最终用 read_file + grep_search；此处以首个工具 read_file 判定
+  - id: combo_glob_then_read
+    prompt: 找到 src 下所有的 .ts 文件，然后把第一个文件的内容读出来
+    tool: glob_search
+    required: { pattern: string }
+    note: 期望 glob_search → read_file；以首个工具 glob_search 判定
+
+  # ── 错误重试（retry: true，模拟该工具首次调用失败，检验模型是否修正后重试成功）──
+  - id: retry_read_file
+    prompt: 请把文件 D:\tmp\report.txt 的内容读给我
+    tool: read_file
+    required: { path: string }
+    expect_args:
+      path: { contains: "report.txt" }
+    retry: true
+    note: 首次 read_file 会返回模拟错误，期望模型在后续以正确参数重试成功
+  - id: retry_run_bash
+    prompt: 帮我执行 echo hello
+    tool: run_bash
+    required: { command: string }
+    expect_args:
+      command: { contains: "hello" }
+    retry: true
+    note: 首次 run_bash 会返回模拟错误，期望模型在后续以正确参数重试成功

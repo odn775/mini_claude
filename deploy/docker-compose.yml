@@ -1,0 +1,79 @@
+# 一键起整套服务：mysql + backend(FastAPI) + frontend(Nginx 托管前端产物)
+#
+# 用法（仓库根目录）：
+#   docker compose -f deploy/docker-compose.yml up -d --build
+#   浏览器打开 http://localhost:8080
+#
+# 前置：backend/.env 必须存在（从 backend/.env.example 复制并填入 DASHSCOPE_API_KEY）
+
+name: mini-claude
+
+services:
+  mysql:
+    image: mysql:8
+    restart: unless-stopped
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root123456}
+      MYSQL_DATABASE: mini_claude
+      MYSQL_USER: mini_claude
+      MYSQL_PASSWORD: mini_claude
+    volumes:
+      - mysql_data:/var/lib/mysql
+    # 只绑本机回环：既让本地开发（scripts\dev-backend.cmd）能直连复用同一个库，
+    # 又不把数据库暴露到局域网
+    ports:
+      - "127.0.0.1:3306:3306"
+    healthcheck:
+      # 后端要等 MySQL 真正可用再启动，否则迁移会连不上
+      test:
+        [
+          "CMD",
+          "mysqladmin",
+          "ping",
+          "-h",
+          "127.0.0.1",
+          "-u",
+          "root",
+          "-p${MYSQL_ROOT_PASSWORD:-root123456}",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+
+  backend:
+    build:
+      context: ..
+      dockerfile: deploy/backend.Dockerfile
+    restart: unless-stopped
+    # 复用 backend/.env 里的 API Key 与模型配置（单一来源，避免密钥写两份）
+    env_file:
+      - ../backend/.env
+    environment:
+      # 容器内的数据库地址与数据目录必须覆盖成 compose 里的值
+      DATABASE_URL: mysql+pymysql://mini_claude:mini_claude@mysql:3306/mini_claude?charset=utf8mb4
+      MINI_CLAUDE_DATA_DIR: /data
+      MINI_CLAUDE_HOST: 0.0.0.0
+      MINI_CLAUDE_PORT: "8000"
+    volumes:
+      - app_data:/data
+    depends_on:
+      mysql:
+        condition: service_healthy
+    # 先跑迁移再起服务，避免"库里没有表"
+    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"
+
+  frontend:
+    build:
+      context: ..
+      dockerfile: deploy/frontend.Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+
+volumes:
+  mysql_data:
+  app_data:

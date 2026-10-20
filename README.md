@@ -1,298 +1,323 @@
 # Mini Claude
 
-一个轻量级 AI 编码助手，基于 **ReAct（推理 + 行动）** 架构，通过工具调用与代码库交互。
+一个轻量级 AI 编码助手：**ReAct（推理 + 行动）** 内核，自带 RAG 知识库、Skills 与 MCP 扩展，
+同时提供 **CLI** 与 **Web** 两个入口，两者共用同一套内核、同一份会话数据。
+
+- 后端：Python 3.12 · FastAPI · SQLAlchemy 2 · Alembic · MySQL 8
+- 前端：Vue 3 · Vite · TypeScript · Element Plus
+- 部署：Docker Compose（MySQL + 后端 + Nginx）
 
 ## 架构
 
-```
-用户输入
-    │
-    ▼
-┌────────────────────────────────────────┐
-│  ReAct 循环 (agent.py)                 │
-│                                        │
-│  ① LLM 思考 → 决定调用哪个工具         │
-│  ② 执行工具（grep/glob/read/write 等） │
-│  ③ 工具结果送回 LLM                    │
-│  ④ 循环直到 LLM 给出最终答案           │
-│  （最多 50 次迭代）                     │
-└────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph entries["入口层 app/entries"]
+        CLI["CLI REPL<br/>cli.py"]
+        WEB["Web 入口<br/>web.py"]
+    end
+
+    subgraph api["接口层 app/api/v1"]
+        RT["routers：config / health / tools / sessions / chat / kb"]
+    end
+
+    subgraph services["业务编排层 app/services"]
+        CS["chat_service<br/>一轮对话编排 + 落库"]
+        SS["session_service<br/>会话运行时 / 独占锁 / TTL"]
+        SB["stream_broker<br/>有界事件队列（SSE）"]
+    end
+
+    subgraph core["内核层 app/core（与 IO 无关）"]
+        AG["agent<br/>ReAct 循环 + 事件流"]
+        CT["context<br/>token 估算 / 历史压缩"]
+        PR["prompt<br/>system prompt 构建"]
+    end
+
+    subgraph infra["基础设施层 app/infra"]
+        LLM["llm 客户端 + 重试"]
+        MCPU["mcp 服务器管理"]
+        KB["knowledge<br/>切块 / embedding / FAISS+BM25+RRF"]
+        SKL["skills 发现与解析"]
+        HLT["health 体检与活体探测"]
+        CFG["config（pydantic-settings，读 .env）"]
+    end
+
+    subgraph db["持久层 app/db"]
+        MOD["models（sessions / messages / usages）"]
+        REP["repositories"]
+        MYSQL[("MySQL 8")]
+    end
+
+    CLI --> core
+    CLI --> db
+    WEB --> api --> services --> core
+    core --> infra
+    services --> db --> MYSQL
 ```
 
-核心逻辑：模型自主决定"该做什么操作、查什么代码、读什么文件"，然后根据结果继续推理。
+**分层职责**（依赖方向自上而下，内核层不依赖任何框架）：
+
+| 层 | 职责 | 明确不做 |
+|---|---|---|
+| `entries/` | 装配与渲染：CLI 终端交互、Web 启动 | 不写业务逻辑 |
+| `api/v1` | 路由、出入参校验、SSE 编码 | 不碰 ORM，不调 LLM |
+| `services/` | 一轮对话编排、会话生命周期、事件分发、并发控制 | 不直接发 HTTP 请求 |
+| `core/` | ReAct 循环、事件流、上下文压缩 | 不依赖 FastAPI / DB / 终端 |
+| `infra/` | LLM、MCP、RAG、Skills、健康检查、配置 | 不感知"某次请求" |
+| `db/` | ORM 模型与仓储 | 不写业务规则 |
+
+## 项目线程
+
+```mermaid
+sequenceDiagram
+    participant U as 浏览器（Vue3）
+    participant API as FastAPI /api/v1
+    participant S as chat_service
+    participant A as core.agent
+    participant DB as MySQL
+
+    U->>API: POST /sessions/{id}/messages
+    API->>API: 校验会话存在 · 取会话独占锁（占用中回 409）
+    API->>S: 启动 worker 线程，返回 SSE 流
+    S->>DB: 读回历史 + 补最新 system prompt
+    loop ReAct 多轮（最多 20 次工具调用）
+        S->>A: stream_agent(messages, tools)
+        A-->>API: tool_call / tool_result / text_delta
+        API-->>U: data: {...} 逐条推送
+    end
+    A-->>S: usage（input/output/cached tokens）
+    S->>DB: 整份对齐消息 + 记用量 + 刷活跃时间
+    S-->>API: 关流
+    API-->>U: data: {"type":"done"}
+```
+
+客户端断开只停止推送，worker 线程照常跑完并落库——历史不会丢。
+
+## 目录结构
+
+```
+mini_claude/
+├── backend/
+│   ├── app/
+│   │   ├── core/          # agent 事件流 · 上下文压缩 · system prompt
+│   │   ├── infra/         # llm · mcp · knowledge(RAG) · skills · health · config · paths
+│   │   ├── tools/         # specs(工具定义) · builtin(实现) · registry(分发)
+│   │   ├── db/            # models · repositories · base(引擎与会话工厂)
+│   │   ├── schemas/       # /api/v1 出入参
+│   │   ├── services/      # chat / session / stream_broker / kb / context(AppContext)
+│   │   ├── api/v1/        # system · sessions · chat · kb · router
+│   │   ├── entries/       # cli.py（REPL）· web.py（uvicorn 入口）
+│   │   └── main.py        # create_app() 应用装配
+│   ├── alembic/           # 数据库迁移
+│   ├── requirements.txt
+│   └── .env.example
+├── frontend/
+│   ├── src/
+│   │   ├── api/           # client.ts（HTTP + SSE 解析）· types.ts（契约类型）
+│   │   ├── stores/chat.ts # 会话、消息流、SSE 事件处理
+│   │   ├── components/    # TopBar · SessionSidebar · KbPanel · WelcomePanel
+│   │   │                  # MessageList · MessageItem · ToolCard · Composer
+│   │   ├── views/ChatView.vue
+│   │   └── styles/main.css
+│   ├── vite.config.ts     # 开发态把 /api 代理到 127.0.0.1:8000
+│   └── package.json
+├── deploy/                # docker-compose.yml · 两个 Dockerfile · nginx.conf
+├── scripts/               # dev-backend.cmd · dev-frontend.cmd · migrate.cmd · compose-*.cmd
+├── evals/                 # RAG 检索评测与工具评测（论文实验数据来源）
+│                          #   eval_recall.py · compare_retrieval.py · tools_runner.py
+│                          #   cases.yaml · tools_result.json · sample_skills/
+└── README.md
+```
+
+## 快速开始
+
+### 前置：配置 API Key
+
+```cmd
+copy backend\.env.example backend\.env
+```
+
+编辑 `backend\.env`，填入 `DASHSCOPE_API_KEY`。其余字段都有默认值（模型、地址、数据库连接串）。
+
+### 方式一：Docker Compose（一键起）
+
+```cmd
+scripts\compose-up.cmd
+```
+
+浏览器打开 <http://localhost:8080>。该命令会：
+构建后端镜像（装依赖）→ 构建前端产物并用 Nginx 托管 → 起 MySQL（带健康检查）→
+等 MySQL 就绪后自动执行 `alembic upgrade head` → 启动后端。
+
+停止：`scripts\compose-down.cmd`（数据留在 `mysql_data` 与 `app_data` 两个卷里）。
+
+### 方式二：本地开发
+
+```cmd
+scripts\dev-backend.cmd     REM 后端 8000（热重载）
+scripts\dev-frontend.cmd    REM 前端 5173，/api 自动代理到 8000
+```
+
+浏览器打开 <http://localhost:5173>。数据库直接复用 compose 里的那个
+（它已绑定 `127.0.0.1:3306`，与本地开发共用同一份数据）：
+
+```cmd
+docker compose -f deploy/docker-compose.yml up -d mysql
+scripts\migrate.cmd upgrade head
+```
+
+### 方式三：CLI
+
+```cmd
+cd backend
+python -m app.entries.cli
+```
+
+CLI 与 Web 落库的是同一张 `sessions` 表，Web 侧栏能看到 CLI 的对话（带 `CLI` 标记）。
+
+## 配置
+
+全部配置来自 `backend/.env`（环境变量优先于文件），字段见 `backend/.env.example`：
+
+| 变量 | 说明 | 默认 |
+|---|---|---|
+| `DASHSCOPE_API_KEY` | 阿里百炼 API Key（必填） | 无 |
+| `MINI_CLAUDE_MODEL` | 模型名 | `qwen3.7-max` |
+| `MINI_CLAUDE_BASE_URL` | OpenAI 兼容接口地址 | 阿里百炼 |
+| `MINI_CLAUDE_MAX_TOKENS` | 单次生成上限 | `16384` |
+| `DATABASE_URL` | SQLAlchemy 连接串（换方言只改这一行） | `mysql+pymysql://...@127.0.0.1:3306/mini_claude` |
+| `MINI_CLAUDE_HOST` / `MINI_CLAUDE_PORT` | Web 监听地址 | `127.0.0.1` / `8000` |
+| `MINI_CLAUDE_DATA_DIR` | 运行数据目录（skills / 索引 / mcp.json） | `~/.mini_claude` |
+
+## REST API
+
+接口文档：服务起来后访问 `/docs`（OpenAPI 自动生成）。全部挂在 `/api/v1` 下：
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/config` | 当前模型配置（不回传 Key） |
+| GET | `/health` | 静态体检：config/api/mcp/knowledge/tools/skills |
+| GET | `/health/ping` | 活体探测：net / llm / embedding 三探针（消耗少量 token） |
+| GET | `/tools` | 当前可用工具（内置 + 已连接 MCP） |
+| GET | `/sessions` | 会话列表（`?source=web\|cli`、`?limit=`） |
+| POST | `/sessions` | 新建会话 |
+| GET | `/sessions/{id}` | 会话详情（含 user/assistant 纯文本历史） |
+| PATCH | `/sessions/{id}` | 改名 |
+| DELETE | `/sessions/{id}` | 删除（消息级联删除） |
+| POST | `/sessions/{id}/messages` | 发消息，**SSE** 流式返回 |
+| GET | `/kb/status` | 知识库索引状态 |
+| POST | `/kb/rebuild` | 触发索引重建（后台执行，重复触发回 409） |
+
+**SSE 事件契约**（`text/event-stream`，每条 `data: {json}`）：
+
+| type | 载荷 | 含义 |
+|---|---|---|
+| `text_delta` | `content` | 回答的增量文本 |
+| `tool_call` | `name` / `arguments` / `call_id` | 模型要调用工具 |
+| `tool_result` | `name` / `call_id` / `content` | 工具执行结果 |
+| `text` | `content` | 回答全文（用于最终覆盖渲染） |
+| `usage` | `input_tokens` / `output_tokens` / `cached_tokens` | 本轮累计用量 |
+| `compact` | `before_tokens` / `after_tokens` / `degraded` | 本轮触发了历史自动压缩 |
+| `notice` | `message` | 事件过多导致部分流式文本被丢弃 |
+| `error` | `kind` / `message` | 本轮失败 |
+| `done` | — | 流结束 |
+
+## 数据库
+
+| 表 | 说明 |
+|---|---|
+| `sessions` | 会话：`id` · `title` · `source`(web/cli) · `model` · `created_at` · `updated_at` |
+| `messages` | 消息：`session_id` · `seq` · `role` · `payload`(原始 OpenAI 消息 JSON) · `created_at` |
+| `usages` | 每轮用量：`input_tokens` · `output_tokens` · `cached_tokens` · `latency_ms` |
+
+`payload` 存原始消息（含 `tool_calls` / `tool_call_id`），回放时能原样喂给模型；
+`usages` 是论文实验数据的直接来源（token 消耗、缓存命中、耗时）。
+
+迁移命令：`scripts\migrate.cmd upgrade head`，新增迁移用
+`scripts\migrate.cmd revision --autogenerate -m "说明"`。
 
 ## 功能
 
-### ReAct Agent
-- 标准的 `while True` 循环：调用 LLM → 解析 tool_calls → 执行工具 → 追加结果 → 继续
-- 使用 [DashScope API](https://help.aliyun.com/zh/model-studio/)（通义千问 Qwen 系列模型）
-- 兼容 OpenAI SDK 调用格式
+### ReAct 内核
+
+标准的 `while` 循环：调用 LLM → 解析 `tool_calls` → 执行工具 → 结果回填 → 继续，最多 20 轮。
+以事件流形式产出 `text_delta / tool_call / tool_result / text / usage`，CLI 与 Web 都只消费事件。
 
 ### 8 个内置工具
+
 | 工具 | 作用 |
-|------|------|
-| `grep_search` | 在文件中搜索匹配正则的内容行 |
-| `glob_search` | 使用 glob 模式匹配文件路径 |
-| `read_file` | 读取文件内容（带缓存避免重复读） |
-| `write_file` | 写入文件，自动创建目录 |
-| `run_bash` | 执行 shell 命令 |
-| `search_knowledge` | 语义搜索本地知识库（RAG） |
+|---|---|
+| `grep_search` | 按正则搜索文件内容行 |
+| `glob_search` | 按 glob 匹配文件路径 |
+| `read_file` | 读文件（带读缓存，避免重复读浪费 token） |
+| `write_file` | 写文件，自动建目录 |
+| `run_bash` | 执行 shell 命令（Web 端受"允许执行命令"开关控制） |
+| `search_knowledge` | 语义检索本地知识库 |
 | `run_skill` | 加载并执行 skill 指令 |
-| `check_health` | 检查各模块状态，出错时定位问题模块 |
+| `check_health` | 各模块体检，出错时定位问题模块 |
 
 ### RAG 知识库
 
-**索引构建**
-- `multimodal-embedding-v1`（阿里百炼）生成向量（1024 维）
-- FAISS IndexFlatL2 本地索引，无需外部服务
-- 自动按段落/句切块（500 字/块，50 字重叠），支持中英文
-- 动态批量 + 断点续传：中途中断不丢进度，下次重建从断点继续
-- 命令：`/kb rebuild` 建索引，`/kb status` 查看状态
+**索引构建**：`multimodal-embedding-v1`（1024 维）→ FAISS IndexFlatL2，本地文件索引；
+按段落/句切块（500 字/块，50 字重叠），动态分批 + 断点续传（中断后再次重建从断点继续）。
 
-**检索管线**（多 query 改写 + 混合检索 + RRF 融合）
-```
-用户提问 → ① 多 query 改写 → ② 每个变体双通道检索 → ③ RRF 融合去重 → 返回 Top-5
-                    ┌─ 稠密：embedding → FAISS 粗筛（20条/变体）
-                    └─ 稀疏：jieba 分词 → BM25（20条/变体）
-```
-- **多 query 改写**：LLM 一次调用产出 2 个变体（① 同义改写 ② 关键词密集短语），加原始 query 共 3 条参与检索
-- **混合检索**：每条变体同时跑 FAISS 稠密 + BM25 稀疏，语义与精确关键词互补
-- **RRF 融合**：6 个排序列表按 Reciprocal Rank Fusion（k=60）融合，无需归一化不同打分尺度
-- **失败兜底**：改写失败退化为只用原始 query；单个变体 embedding 失败时丢弃该变体，其余照常
+**检索管线**：多 query 改写 → 双通道（FAISS 稠密 + jieba/BM25 稀疏）→ RRF 融合 → Top-5。
+任一环节失败都降级：改写失败只用原 query，单变体 embedding 失败丢弃该变体。
 
-**检索效果测试**（2026-08-15，78 块语料，14 条黄金 query，答案短语经语料校验）
+**检索效果**（2026-08-15，78 块语料，14 条黄金 query）：
 
-| Recall@K | 新管线（多query+BM25+RRF） | 旧管线（单次改写+子串计数） |
+| Recall@K | 多query+BM25+RRF | 单次改写+子串计数 |
 |---|---|---|
 | @1 | 28.6% | 7.1% |
 | @3 | 57.1% | 21.4% |
 | @5 | **71.4%** | 21.4% |
 
-- 新管线 **Recall@5 达 71.4%，为旧管线的 3.3 倍**，专名/长问句召回显著改善
-- 未命中的 4 条集中在**表内数值**（如结晶度 69%、回潮率 13.00%）与**泛化提问**（如"这篇论文主要研究什么"）
-- 评估脚本 `eval_recall.py`（黄金集 + 新旧管线对比），旧管线快照见 `compare_retrieval.py`
+评测脚本在 `evals/`（黄金集 + 新旧管线对比），可直接作为论文实验章节的数据来源。
 
-### Skills 技能系统
-- YAML frontmatter 格式的 SKILL.md 文件存放在 `~/.mini_claude/skills/<name>/`
-- 技能目录可附带参考文件
-- 模型可自主调用 `run_skill` 加载技能指令
-- 单个description 不超过300字符，所有description不超过上下文窗口的1%
+### Skills 与 MCP
 
-### MCP（Model Context Protocol）集成
-- 支持 MCP 服务器通过 **stdio** 和 **streamable_http** 两种 transport 接入
-- 配置存放于 `~/.mini_claude/mcp.json`，格式：
-  ```json
-  {
-    "mcpServers": {
-      "filesystem": {
-        "command": "npx",
-        "args": ["-y", "@modelcontextprotocol/server-filesystem", "D:/projects"],
-        "env": {}
-      }
-    }
-  }
-  ```
-- **启动时拉起所有服务器**，自动发现工具列表，合并到 agent 的工具列表
-- MCP 工具通过前缀 `{server_name}__{tool_name}` 避免名称冲突
-- 调用失败时返回错误信息给模型，由模型决定下一步
-- 退出时自动 kill 所有 MCP 子进程
-- ⚠️ **已知限制**：MCP 工具返回的 `image` 类型内容无法处理，仅有 `text` 类型会被传递给模型
+- Skills：`~/.mini_claude/skills/<name>/SKILL.md`（YAML frontmatter），
+  单个 description ≤ 300 字符、总量不超过上下文窗口的 1%，模型可自主调 `run_skill`。
+  仓库里带一个示例：`evals/sample_skills/hanli/`（复制到 `~/.mini_claude/skills/` 即可使用）。
+- MCP：支持 `stdio` 与 `streamable_http` 两种 transport，配置在 `~/.mini_claude/mcp.json`；
+  启动时拉起全部服务器并合并工具表，工具名加 `{server}__{tool}` 前缀避免冲突。
 
-### 上下文管理
-- `/context` — 查看当前上下文使用情况（估算 token、消息数、角色分布）
-- `/compact` — 用 LLM 压缩对话历史为摘要，释放上下文空间
+### 健康检查
 
-### Web 聊天界面（FastAPI）
+- `/health`（静态体检，零成本）：config / api / mcp / knowledge / tools / skills
+- `/health/ping`（活体探测，消耗少量 token）：net（TCP+TLS）/ llm（最小请求）/ embedding
+- 异常自动诊断：按异常类型归类疑似模块并给下一步建议，全健康时只打一行
 
-CLI 之外，还提供浏览器聊天界面，与 CLI 共存、共享同一套核心逻辑（agent / tools / RAG / skills / MCP / health）。
+## 设计取舍
 
-**启动：**
+重构时刻意处理的几件事，也是论文里可以展开的点：
 
-```bash
-python -m mini_claude.web
-# 打开 http://127.0.0.1:8000
-```
-
-**界面**（参考 DeepSeek harness 的极简风格，去掉了品牌标识）：
-- 顶栏「新会话」按钮 + 左侧「工作区」会话列表（支持搜索、删除）
-- 欢迎页「有什么可以帮你的？」+ 建议问题快捷入口
-- 消息区：用户右侧浅灰气泡，助手左侧 Markdown 渲染（含代码高亮，CDN 引入）
-- 工具调用以折叠卡片展示（工具名 + 状态，点击展开参数和结果）
-- 输入框：绿色圆形发送按钮 + 只读模型名 + 「允许执行命令」开关
-
-**架构要点：**
-- `stream_agent` 用 `stream=True` 逐 token 流式请求，产出 `text_delta`（增量文本）+ `tool_call` / `tool_result` / `text`（全文）事件，SSE 推给前端实时渲染；CLI 继续用 `run_agent` 包装函数，行为不变
-- 会话状态存内存（重启即失），每会话一把锁，同一会话同时只跑一个 turn
-- 客户端断开不中止对话，turn 照常跑完并写回历史
-- MCP 服务器在服务启动时拉起、退出时关闭（与 CLI 一致）
-- `run_bash` 受「允许执行命令」开关控制，关闭时告知模型改用非命令手段
-
-**REST API：**
-
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| GET | `/` | 页面 |
-| GET | `/api/config` | 当前模型配置（不返回 key） |
-| GET | `/api/health` | 各模块体检结果 |
-| GET | `/api/sessions` | 会话列表 |
-| POST | `/api/sessions` | 新建会话 |
-| GET | `/api/sessions/{id}` | 会话详情（含历史消息） |
-| DELETE | `/api/sessions/{id}` | 删除会话 |
-| POST | `/api/chat` | 发消息，SSE 流式返回事件 |
-
-### 交互体验
-- **智能命令面板** — 输入 `/` 弹出下拉框，实时过滤可执行命令（按前缀匹配）
-  ```
-  > /c
-  ─────────────────────────────────────────
-    ▸ /clear       清空对话历史
-      /compact     压缩对话历史
-      /context     查看上下文使用情况
-  ─────────────────────────────────────────
-  (↑↓ 选择, Enter 自动补全, Tab 快速补全, Esc 关闭)
-  ```
-- **Enter 自动补全** — 回车时下拉框选中项自动填入缓冲区
-- **Tab 快速补全** — 将选中项填入缓冲区继续编辑
-- **↑↓ 浏览输入历史**（无下拉时），无下拉时 ↑↓ 切换历史输入
-- **Ctrl+U** 一键清空当前输入行
-- **Interactive Skill Picker** — 输入 `/skills` 后可用 **↑↓ 方向键**选择 skill，Enter 执行，q/Esc 取消
-- **ANSI 彩色输出** — 全彩的命令、高亮、灰化辅助文字
-- **"thinking... 已思考 X 秒"** 动画（后台线程，AI 思考时实时更新）
-- **终端兼容** — ANSI 光标定位方案已针对 Windows Terminal 优化，避免下拉框残留和视口越界崩溃
-
-### 检测 / 健康检查模块（health.py）
-
-问题定位与状态检测的双通道机制，纯本地、零埋点、不侵入其他模块。
-
-**三个入口：**
-- `/health` — 全静态体检，零成本秒回。检查项：config（文件存在/可解析/key 已填）、api（base_url + key 静态校验）、mcp（配置 vs 实际连接数）、knowledge（索引存在/块数/索引过期提醒）、tools（定义与实现一一对应）、skills（可解析/数量/超限截断）
-- `/ping` — 活体探测（消耗少量 token），三探针全跑、逐条独立报告延迟：
-  - `net`：TCP+TLS 可达 `base_url`（0 token）
-  - `llm`：最小 `chat.completions` 请求验证 key/模型/额度
-  - `embedding`：单文本调 embedding API 验证额度
-- `check_health` 工具（第 8 个内置工具）— 模型在对话中收到工具错误字符串时，可自调此工具做差分诊断，定位问题模块
-
-**异常自动诊断：** main.py 在捕获异常时自动触发（run_turn 的 LLM 调用 + MCP 初始化两处）。按异常类型归类疑似模块（连接失败/超时 → 网络层、限流 → 配额、鉴权 → config…），并列出体检中不健康的模块，每条附下一步建议（如「运行 /ping 验证网络」）。全部健康时只打一行提示，不刷屏。
-
-**设计要点：**
-- 每个 check 自带 try/except，某模块依赖缺失时降级为「无法检查」而非拖垮整表
-- MCP 连接状态通过 `set_mcp_manager()` 注入共享，命令路径与工具路径看到的是同一份状态
-- 只读检查，不写文件、不发请求（除 `/ping`）
-
-### 配置系统
-- 配置文件：`~/.mini_claude/config.json`
-- 环境变量覆盖：`DASHSCOPE_API_KEY`、`MINI_CLAUDE_MODEL`、`MINI_CLAUDE_BASE_URL`、`MINI_CLAUDE_MAX_TOKENS`
-- 优先级：环境变量 > 配置文件 > 默认值
-- 首次运行自动创建配置模板
-
-## 快速开始
-
-### 1. 安装依赖
-
-```bash
-pip install -r requirements.txt
-```
-
-### 2. 配置 API Key
-
-首次运行会自动创建配置文件模板：
-
-```bash
-python -m mini_claude.main
-```
-
-编辑 `~/.mini_claude/config.json`，填入 API Key：
-
-```json
-{
-    "api_key": "sk-ws-...",
-    "model": "qwen3.7-plus",
-    "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
-    "max_tokens": 4096
-}
-```
-
-也可通过环境变量设置：
-
-```bash
-export DASHSCOPE_API_KEY="sk-ws-..."
-```
-
-### 3. 启动
-
-```bash
-python -m mini_claude.main
-```
-
-建议设置别名：
-
-```bash
-alias miniclaude="python -m mini_claude.main"
-```
-
-## 项目结构
-
-```
-mini_claude/
-├── __init__.py
-├── agent.py        # ReAct 循环核心（stream_agent 事件流 + run_agent 兼容包装）
-├── config.py       # 配置读取（文件 + 环境变量）
-├── health.py       # 检测模块（/health、/ping、check_health 工具、异常诊断）
-├── knowledge.py    # RAG 知识库（切块、embedding、FAISS 检索）
-├── main.py         # REPL 入口（命令处理、交互界面）
-├── mcp_manager.py  # MCP 服务器管理（启动、工具发现、调用、关闭）
-├── skills.py       # Skills 系统（发现、解析、执行）
-├── tools.py        # 8 个工具的定义和实现
-├── web.py          # FastAPI 入口（会话层 + SSE + REST API）
-└── static/
-    └── index.html  # 浏览器聊天界面（单文件 + CDN）
-requirements.txt
-miniclaude          # shell 启动脚本
-miniclaude.cmd      # Windows 启动脚本
-README.md
-```
-
-## 命令
-
-| 命令 | 作用 |
-|------|------|
-| `/exit` | 退出 |
-| `/clear` | 清空对话历史 |
-| `/context` | 查看上下文使用情况 |
-| `/compact` | 压缩对话历史 |
-| `/tools` | 列出可用工具 |
-| `/skills` | 交互式选择并执行 skill |
-| `/kb rebuild` | 重建知识库索引 |
-| `/kb status` | 查看知识库状态 |
-| `/health` | 检查各模块状态（静态体检） |
-| `/ping` | 活体探测 API 可用性（net/llm/embedding） |
-| `<skill_name>` | 直接运行 skill |
-
-## 依赖
-
-- Python ≥ 3.10
-- openai ≥ 1.0.0
-- faiss-cpu ≥ 1.8.0
-- numpy ≥ 1.24
-- jieba ≥ 0.42.1（BM25 中文分词）
-- rank-bm25 ≥ 0.2.2（BM25 稀疏检索）
-- requests
-- mcp ≥ 1.28
-
-## 模型适配
-
-默认使用阿里百炼 DashScope API，如需适配其他 OpenAI 兼容 API：
-
-```bash
-export MINI_CLAUDE_BASE_URL="https://your-api-endpoint/v1"
-export MINI_CLAUDE_MODEL="your-model-name"
-```
+1. **抽 `core` 层**：把 ReAct 循环、上下文压缩从 CLI 里剥出来，内核不再依赖终端与 HTTP，
+   于是 CLI 与 Web 变成"同一内核的两个渲染器"，新增入口不需要复制业务逻辑。
+2. **每会话一把独占锁**：同会话串行、跨会话并行；重复提交同一会话直接回 409，
+   避免旧实现里"全局字典锁 + 消息列表被并发读写"的数据竞争。
+3. **有界事件队列**：SSE 队列设上限，满了优先丢最老的 `text_delta`（最终 `text` 事件仍完整），
+   客户端断开后队列不会无限堆积。
+4. **会话运行时 TTL 与容量上限**：空闲自动回收、超出容量按最近最少使用淘汰，
+   只回收"当前没人在跑"的会话（锁能被立刻拿到才算空闲）。
+5. **失败语义**：已经流给用户看过的内容必须落库（否则刷新后历史与所见不符）；
+   完全没产出时才回滚到本轮之前。历史压缩会改写整个消息列表，因此落库采用"整份对齐"而非增量追加。
+6. **system prompt 不落库**：每次加载时按当前 skills 重新构建，skill 变更对老会话立即生效。
 
 ## 已知限制
 
-- 无记忆/持久化存储
-- 无多 Agent 协作
-- CLI 无流式输出（Web 版支持 token 流式 + 工具事件流）
-- 知识库索引需手动重建（`/kb rebuild`）
-- MCP 集成：仅支持 stdio transport，仅处理 text 类型内容（image/resource 类型无法传给模型）
-- **Windows 系统代理 TLS 拦截**：若代理工具（如 Clash/v2rayN）对 API 域名做 TLS 中间人，Python 请求（requests/httpx）会报 `SSL: CERTIFICATE_VERIFY_FAILED`（curl 正常）。处理：为 dashscope 域名设置 `NO_PROXY=dashscope.aliyuncs.com,aliyuncs.com` 绕过，或在代理中信任其证书
+- 单用户：无登录与多租户隔离（`allow_bash` 默认放开，仅在可信环境使用）
+- CLI 仍是同步整段输出（Web 端才是逐 token 流式）
+- MCP 仅处理 `text` 类型返回，`image`/`resource` 无法传给模型
+- 工具的相对路径以 **后端进程的工作目录** 为基准（CLI 是终端当前目录，Web 是 `backend/`）
+- 知识库索引需手动重建（CLI 的 `/kb rebuild` 或 `POST /api/v1/kb/rebuild`）
+- Windows 下若代理软件对 API 域名做 TLS 中间人，Python 请求会报
+  `SSL: CERTIFICATE_VERIFY_FAILED`：为 dashscope 域名设置 `NO_PROXY` 绕过
+
+## 从旧版本迁移
+
+- 旧配置文件 `~/.mini_claude/config.json` **已停用**，请把 `api_key` 迁到 `backend/.env`
+  的 `DASHSCOPE_API_KEY`（其余字段有默认值，可省略）。
+- 旧的单包结构（CLI 的 `python -m mini_claude.main`、Web 的 `python -m mini_claude.web`）已移除，
+  改为 `python -m app.entries.cli` 与 `python -m app.entries.web`（均在 `backend/` 下）。
+- 旧的 SQLite 用量文件 `~/.mini_claude/usage.db` 不再使用，用量统一记入 MySQL 的 `usages` 表。
+- 若需从旧的 `usage.db` 导数：直接读 SQLite 的 `turns` 表即可（字段名与新表一致）。

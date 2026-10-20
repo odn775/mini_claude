@@ -1,4 +1,5 @@
 @echo off
-cd /d "%~dp0"
+REM Mini Claude CLI launcher (entry point: backend/app/entries/cli.py)
+cd /d "%~dp0backend"
 set PYTHONIOENCODING=utf-8
-python -m mini_claude.main %*
+python -m app.entries.cli %*

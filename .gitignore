@@ -10,6 +10,9 @@ build/
 venv/
 env/
 
+# Node
+node_modules/
+
 # User config (contains real API keys)
 ~/.mini_claude/
 

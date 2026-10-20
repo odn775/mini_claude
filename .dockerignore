@@ -1,0 +1,12 @@
+# Docker 构建上下文根目录的忽略清单：这些内容不需要进镜像
+**/node_modules
+**/__pycache__
+**/*.pyc
+**/.venv
+**/venv
+**/dist
+**/.git
+**/.idea
+**/.vscode
+backend/.env
+frontend/.env.local

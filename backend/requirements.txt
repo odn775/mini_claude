@@ -1,0 +1,20 @@
+# ===== LLM / Agent =====
+openai>=1.0.0
+mcp>=1.28
+
+# ===== RAG 知识库 =====
+faiss-cpu>=1.8.0
+numpy>=1.24
+jieba>=0.42.1
+rank-bm25>=0.2.2
+requests>=2.31.0
+
+# ===== Web =====
+fastapi>=0.111
+uvicorn>=0.30
+
+# ===== 配置 / 持久化 =====
+pydantic-settings>=2.0
+sqlalchemy>=2.0
+alembic>=1.13
+pymysql>=1.1

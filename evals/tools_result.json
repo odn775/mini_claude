@@ -1,0 +1,20 @@
+{
+  "repeat": 1,
+  "overall_acc": 0.7857,
+  "per_case": {
+    "read_file_basic": 1.0,
+    "read_file_missing_path": 0.0,
+    "write_file_basic": 1.0,
+    "run_bash_current_dir": 1.0,
+    "run_bash_version": 1.0,
+    "glob_search_python": 1.0,
+    "grep_search_error": 1.0,
+    "search_knowledge_doc": 1.0,
+    "run_skill_translate": 1.0,
+    "check_health_trouble": 1.0,
+    "combo_read_then_grep": 1.0,
+    "combo_glob_then_read": 1.0,
+    "retry_read_file": 0.0,
+    "retry_run_bash": 0.0
+  }
+}
