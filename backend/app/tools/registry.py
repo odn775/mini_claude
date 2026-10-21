@@ -12,6 +12,7 @@ TOOL_EXECUTORS = {
     "glob_search": builtin.glob_search,
     "grep_search": builtin.grep_search,
     "search_knowledge": builtin.search_knowledge,
+    "recommend_department": builtin.recommend_department,
     "run_skill": builtin.run_skill_tool,
     "check_health": builtin.check_health,
 }

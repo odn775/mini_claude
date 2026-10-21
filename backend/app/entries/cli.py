@@ -11,6 +11,7 @@ import sys
 import threading
 import time
 
+from app.core import triage_rules
 from app.core.context import compact_messages, estimate_tokens, get_context_window
 from app.core.events import COMPACT, TEXT
 from app.db.base import session_scope
@@ -76,12 +77,15 @@ class Style:
 
 # ── 欢迎画面 ──
 
-DOG = r"""
-        /)_/)
-       (  •⩊•)  有什么可以帮你的？
-       /っ   ﾂ
-      /    ﾉﾉ
+LOGO = r"""
+     +----------------+
+     |       ++       |
+     |     ++++++     |
+     |       ++       |
+     +----------------+
 """
+
+DISCLAIMER = "本工具仅提供就诊科室参考，不构成医疗诊断；急危重症请立即拨打 120。"
 
 
 def thinking_indicator(stop_event: threading.Event):
@@ -429,10 +433,11 @@ def main():
         sys.exit(1)
 
     # 欢迎信息
-    print(DOG)
+    print(LOGO)
     model_name = settings.model
-    print(f"  {Style.colored('Mini Claude v0.1', Style.CYAN, bold=True)}  "
+    print(f"  {Style.colored('智能导诊助手', Style.CYAN, bold=True)}  "
           f"{Style.muted('|')}  {Style.colored(model_name, Style.YELLOW)}")
+    print(f"  {Style.muted(DISCLAIMER)}")
 
     # ── MCP 初始化 ──
     mcp_tools = []
@@ -483,6 +488,10 @@ def main():
         """
         runtime = ensure_runtime()
         stream = EventStream()
+        # 红旗症状由入口层无条件提示，不等待模型判断
+        matched = triage_rules.detect(user_content)
+        if matched:
+            print(f"  {Style.colored(triage_rules.alert_text(matched), Style.RED, bold=True)}")
         # chat_service.run_turn 约定：调用方先拿到会话锁，它负责在结束时释放
         runtime.lock.acquire()
         worker = threading.Thread(

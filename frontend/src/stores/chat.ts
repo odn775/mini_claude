@@ -4,7 +4,8 @@ import { defineStore } from 'pinia'
 import { reactive, ref } from 'vue'
 
 import { api } from '@/api/client'
-import type { ChatMessage, KbStatus, SessionSummary, StreamEvent } from '@/api/types'
+import type { ChatMessage, KbStatus, SessionSummary, StreamEvent, TriageResult } from '@/api/types'
+import { detectRedFlags } from '@/utils/triage'
 
 const EMPTY_KB: KbStatus = {
   building: false,
@@ -16,13 +17,22 @@ const EMPTY_KB: KbStatus = {
 
 const TOOL_RESULT_LIMIT = 4000
 
+/** 后端 recommend_department 返回 JSON；解析失败时不起卡片，正文照常显示。 */
+function parseTriage(content: string): TriageResult | undefined {
+  try {
+    const data = JSON.parse(content) as TriageResult
+    return data.primary_department ? data : undefined
+  } catch {
+    return undefined
+  }
+}
+
 export const useChatStore = defineStore('chat', () => {
   /* ── 状态 ── */
   const currentId = ref<string | null>(null)
   const busy = ref(false)
   const sessions = ref<SessionSummary[]>([])
   const model = ref('')
-  const allowBash = ref(true)
   const messages = ref<ChatMessage[]>([])
   const showWelcome = ref(false)
   const kb = ref<KbStatus>({ ...EMPTY_KB })
@@ -101,6 +111,10 @@ export const useChatStore = defineStore('chat', () => {
           }
           target.result = content
           touch()
+        }
+        // 分诊结论：解析成结构化数据交给分诊卡渲染
+        if (event.name === 'recommend_department') {
+          turn.triage = parseTriage(event.content)
         }
         break
       }
@@ -221,7 +235,8 @@ export const useChatStore = defineStore('chat', () => {
     if (busy.value || !text) return
 
     showWelcome.value = false
-    messages.value.push({ role: 'user', text })
+    // 红旗症状本地判定：输入即提示，不等模型返回
+    messages.value.push({ role: 'user', text, emergency: detectRedFlags(text) })
 
     turnBuf = ''
     // 必须用 reactive 包一层：闭包持有的是这个响应式代理，
@@ -246,7 +261,8 @@ export const useChatStore = defineStore('chat', () => {
       }
       await api.streamMessages(
         currentId.value,
-        { message: text, allow_bash: allowBash.value },
+        // Web 入口不开放命令执行（医疗场景不需要，也不该暴露）
+        { message: text, allow_bash: false },
         handleEvent,
       )
     } catch (err) {
@@ -271,7 +287,6 @@ export const useChatStore = defineStore('chat', () => {
     try {
       const config = await api.getConfig()
       model.value = config.model
-      allowBash.value = config.default_allow_bash
     } catch {
       /* 配置拿不到不影响聊天 */
     }
@@ -293,7 +308,6 @@ export const useChatStore = defineStore('chat', () => {
     busy,
     sessions,
     model,
-    allowBash,
     messages,
     showWelcome,
     kb,

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { ToolRun } from '@/api/types'
+import { toolLabel } from '@/utils/tools'
 
 defineProps<{ tool: ToolRun }>()
 </script>
@@ -9,8 +10,8 @@ defineProps<{ tool: ToolRun }>()
     <template #title>
       <span class="tool-head">
         <span class="dot" :class="tool.status" />
-        <span class="tw">{{ tool.name }}</span>
-        <span class="ts">{{ tool.status === 'running' ? '运行中' : '完成' }}</span>
+        <span class="tw">{{ toolLabel(tool.name) }}</span>
+        <span class="ts">{{ tool.status === 'running' ? '进行中' : '已完成' }}</span>
       </span>
     </template>
     <pre class="args">{{ tool.args }}</pre>

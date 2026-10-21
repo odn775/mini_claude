@@ -1,13 +1,15 @@
-"""内置工具实现：8 个工具的具体逻辑。
+"""内置工具实现：9 个工具的具体逻辑。
 
 约定：任何异常都不向外抛，统一返回给模型看的字符串，让模型自行决定下一步。
 """
 
 import glob as glob_mod
+import json
 import os
 import re
 import subprocess
 
+from app.core import departments
 from app.infra import health
 from app.infra import knowledge as kb
 from app.infra.skills import list_skills, load_skill, skill_dir
@@ -129,11 +131,46 @@ def search_knowledge(query: str) -> str:
     try:
         results = kb.search(query)
         if not results:
-            return "知识库尚未构建索引或未找到相关内容。请先重建知识库索引。"
+            return (
+                "知识库中没有相关资料。请改为依据系统提示词里的科室清单，"
+                "按症状关键词选择科室，并在 reasoning 中说明这是基于常见分诊经验的参考。"
+            )
         lines = [f"[{r['source']}] {r['content']}" for r in results]
         return "\n\n---\n\n".join(lines)
     except Exception as e:
         return f"知识库搜索失败: {e}"
+
+
+def recommend_department(
+    primary_department: str,
+    urgency: str,
+    reasoning: str,
+    advice: str,
+    alternate_department: str = "",
+) -> str:
+    """分诊结论：校验科室落在白名单内，并归一紧急程度。
+
+    返回值是 JSON 字符串——前端据此渲染分诊结果卡。
+    """
+    primary = departments.resolve(primary_department)
+    if primary is None:
+        return (
+            f"科室不在白名单内: {primary_department}。"
+            f"可用的科室：{'、'.join(departments.names())}"
+        )
+
+    alternate = departments.resolve(alternate_department) if alternate_department else None
+    if alternate == primary:
+        alternate = None
+
+    payload = {
+        "primary_department": primary,
+        "alternate_department": alternate or "",
+        "urgency": departments.normalize_urgency(urgency),
+        "reasoning": (reasoning or "").strip(),
+        "advice": (advice or "").strip(),
+    }
+    return json.dumps(payload, ensure_ascii=False)
 
 
 def run_skill_tool(skill_name: str) -> str:

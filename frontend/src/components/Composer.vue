@@ -1,17 +1,11 @@
 <script setup lang="ts">
 import { Position } from '@element-plus/icons-vue'
-import type { CheckboxValueType } from 'element-plus'
-import { computed, ref } from 'vue'
+import { ref } from 'vue'
 
-const props = defineProps<{ busy: boolean; model: string; allowBash: boolean }>()
-const emit = defineEmits<{ send: [text: string]; 'update:allowBash': [value: boolean] }>()
+const props = defineProps<{ busy: boolean; model: string }>()
+const emit = defineEmits<{ send: [text: string] }>()
 
 const text = ref('')
-
-const bash = computed<CheckboxValueType>({
-  get: () => props.allowBash,
-  set: (value) => emit('update:allowBash', Boolean(value)),
-})
 
 function submit() {
   const value = text.value.trim()
@@ -30,13 +24,10 @@ function submit() {
         type="textarea"
         :autosize="{ minRows: 1, maxRows: 6 }"
         resize="none"
-        placeholder="描述你想要构建的内容"
+        placeholder="请描述症状、持续时间和伴随情况…"
         @keydown.enter.exact.prevent="submit"
       />
       <div class="input-actions">
-        <el-tooltip content="关闭后模型将无法执行 shell 命令" placement="top">
-          <el-checkbox v-model="bash" label="允许执行命令" />
-        </el-tooltip>
         <span class="spacer" />
         <span class="model-name">{{ model }}</span>
         <el-button
@@ -49,5 +40,8 @@ function submit() {
       </div>
     </div>
     <div class="hint">Enter 发送 · Shift+Enter 换行</div>
+    <div class="disclaimer">
+      本工具仅提供就诊科室参考，不构成医疗诊断；急危重症请立即拨打 120
+    </div>
   </div>
 </template>

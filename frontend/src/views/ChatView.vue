@@ -7,10 +7,10 @@ import { useChatStore } from '@/stores/chat'
 const store = useChatStore()
 
 const suggestions = [
-  '解读这个项目的架构',
-  '帮我重构某个模块',
-  '解释这段代码',
-  '检查代码质量问题',
+  '咳嗽有痰三天了',
+  '胃痛反酸',
+  '皮肤起了红疹很痒',
+  '头痛头晕',
 ]
 </script>
 
@@ -18,11 +18,6 @@ const suggestions = [
   <main class="main">
     <WelcomePanel v-if="store.showWelcome" :suggestions="suggestions" @pick="store.send" />
     <MessageList v-else />
-    <Composer
-      v-model:allowBash="store.allowBash"
-      :busy="store.busy"
-      :model="store.model"
-      @send="store.send"
-    />
+    <Composer :busy="store.busy" :model="store.model" @send="store.send" />
   </main>
 </template>

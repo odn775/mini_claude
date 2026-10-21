@@ -54,6 +54,17 @@ export type StreamEvent =
   | { type: 'error'; kind?: string; message: string }
   | { type: 'done' }
 
+/** 分诊结论（recommend_department 工具返回的 JSON）。 */
+export type Urgency = 'routine' | 'soon' | 'emergency'
+
+export interface TriageResult {
+  primary_department: string
+  alternate_department?: string
+  urgency: Urgency
+  reasoning: string
+  advice: string
+}
+
 /** 界面消息模型：历史消息只有 user/assistant，流式中的一轮是 turn。 */
 export type ChatRole = 'user' | 'assistant' | 'error' | 'turn'
 
@@ -71,4 +82,8 @@ export interface ChatMessage {
   tools?: ToolRun[]
   thinking?: boolean
   statusText?: string
+  /** 命中的红旗症状标签（仅用户消息） */
+  emergency?: string[]
+  /** 本轮的分诊结论 */
+  triage?: TriageResult
 }

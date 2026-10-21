@@ -26,8 +26,9 @@ from app.services.session_service import SessionRuntime
 from app.services.stream_broker import EventStream
 from app.tools import execute_tool
 
-DEFAULT_TITLE = "新会话"
-MAX_TITLE_LEN = 20
+DEFAULT_TITLE = "新会话"  # 与 db/models.py 的默认值一致
+GENERIC_TITLES = {DEFAULT_TITLE, "新问诊"}  # 尚未被首问改写的占位标题
+MAX_TITLE_LEN = 6
 
 BASH_DISABLED_REPLY = (
     "[web 模式已禁用命令执行。若需要执行命令，"
@@ -62,10 +63,16 @@ def load_messages(session_id: str, settings: Settings) -> list[dict]:
 
 
 def visible_messages(payloads: list[dict]) -> list[dict]:
-    """对外只暴露 user / assistant 的纯文本消息（工具过程不展示）。"""
+    """对外只暴露 user / assistant 的纯文本消息（工具过程不展示）。
+
+    带 tool_calls 的 assistant 消息是「调用工具前的中间发言」，不是最终回答；
+    若把它也算作回复，历史里会出现同一轮的两段重复文本。
+    """
     out = []
     for m in payloads:
         if m.get("role") not in ("user", "assistant"):
+            continue
+        if m.get("tool_calls"):
             continue
         content = m.get("content")
         if not content:
@@ -79,7 +86,7 @@ def visible_messages(payloads: list[dict]) -> list[dict]:
 
 
 def _title_from_history(payloads: list[dict]) -> str | None:
-    """用第一条 user 消息（截断到 20 字）当标题。"""
+    """用第一条 user 消息的前 6 个字当标题（不足 6 个字则全取）。"""
     for m in payloads:
         if m.get("role") != "user":
             continue
@@ -107,7 +114,7 @@ def _finalize(
         session = sessions_repo.get(db, session_id)
         if session is None:
             return
-        if session.title == DEFAULT_TITLE:
+        if session.title in GENERIC_TITLES:
             title = _title_from_history(payloads)
             if title:
                 session.title = title

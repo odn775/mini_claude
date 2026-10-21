@@ -3,6 +3,8 @@
 只放「对模型可见的工具 schema」，实现见 builtin.py，注册与分发见 registry.py。
 """
 
+from app.core.departments import names as department_names
+
 TOOLS = [
     {
         "type": "function",
@@ -102,8 +104,8 @@ TOOLS = [
         "function": {
             "name": "search_knowledge",
             "description": (
-                "在本地知识库中搜索相关文档内容。"
-                "当用户的问题需要查阅外部文档、笔记、参考资料、项目规范或任何可能保存在知识库中的信息时使用此工具。"
+                "检索医学知识库（各科室适用症状、鉴别提示、就诊注意事项）。"
+                "当需要判断症状对应哪个科室，或需要就诊准备信息时使用。"
                 "query 会经过语义匹配，不需要精确关键词。"
             ),
             "parameters": {
@@ -115,6 +117,54 @@ TOOLS = [
                     }
                 },
                 "required": ["query"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "recommend_department",
+            "description": (
+                "给出分诊结论：推荐就诊科室、紧急程度与就诊建议。"
+                "信息足够时必须调用此工具，不要在正文里代替它。"
+                "科室名只能取自系统提示词里的科室清单。"
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "primary_department": {
+                        "type": "string",
+                        "enum": department_names(),
+                        "description": "主推科室",
+                    },
+                    "alternate_department": {
+                        "type": "string",
+                        "enum": department_names() + [""],
+                        "description": "备选科室，没有就留空字符串",
+                    },
+                    "urgency": {
+                        "type": "string",
+                        "enum": ["routine", "soon", "emergency"],
+                        "description": (
+                            "紧急程度：routine 普通门诊；"
+                            "soon 24-48 小时内尽快就诊；emergency 立即急诊"
+                        ),
+                    },
+                    "reasoning": {
+                        "type": "string",
+                        "description": "1-2 句分诊依据，尽量引用用户原话",
+                    },
+                    "advice": {
+                        "type": "string",
+                        "description": "就诊建议：挂号类型、是否空腹、需携带资料等",
+                    },
+                },
+                "required": [
+                    "primary_department",
+                    "urgency",
+                    "reasoning",
+                    "advice",
+                ],
             },
         },
     },
