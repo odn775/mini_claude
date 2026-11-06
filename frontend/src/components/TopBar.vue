@@ -3,8 +3,16 @@ import { storeToRefs } from 'pinia'
 
 import { useChatStore } from '@/stores/chat'
 
+defineProps<{ view: 'chat' | 'stats' }>()
+const emit = defineEmits<{ 'update:view': [view: 'chat' | 'stats'] }>()
+
 const store = useChatStore()
 const { busy } = storeToRefs(store)
+
+function newChat() {
+  emit('update:view', 'chat')
+  store.newChat()
+}
 </script>
 
 <template>
@@ -33,7 +41,27 @@ const { busy } = storeToRefs(store)
         <span class="brand-sub">AI 预问诊 · 仅供参考</span>
       </div>
     </div>
+
+    <nav class="top-nav">
+      <button
+        type="button"
+        class="nav-btn"
+        :class="{ active: view === 'chat' }"
+        @click="emit('update:view', 'chat')"
+      >
+        导诊
+      </button>
+      <button
+        type="button"
+        class="nav-btn"
+        :class="{ active: view === 'stats' }"
+        @click="emit('update:view', 'stats')"
+      >
+        统计分析
+      </button>
+    </nav>
+
     <span class="spacer" />
-    <el-button class="new-chat" :disabled="busy" @click="store.newChat()">新问诊</el-button>
+    <el-button class="new-chat" :disabled="busy" @click="newChat">新问诊</el-button>
   </header>
 </template>

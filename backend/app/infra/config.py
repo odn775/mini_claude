@@ -49,6 +49,12 @@ class Settings(BaseSettings):
     # --- 运行数据（skills 目录、知识库索引、mcp.json）---
     data_dir: Path = Field(Path.home() / ".mini_claude", validation_alias="MINI_CLAUDE_DATA_DIR")
 
+    # 知识库文档目录。默认 <data_dir>/knowledge；容器里指向仓库挂载进来的 docs/departments，
+    # 让 Web 与 CLI 读同一份文档，避免两边各维护一份副本。
+    knowledge_dir: Path | None = Field(
+        None, validation_alias="MINI_CLAUDE_KNOWLEDGE_DIR"
+    )
+
 
 @lru_cache
 def get_settings() -> Settings:

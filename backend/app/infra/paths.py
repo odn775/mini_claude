@@ -20,7 +20,9 @@ def skills_dir(settings: Settings | None = None) -> Path:
 
 
 def knowledge_dir(settings: Settings | None = None) -> Path:
-    return data_dir(settings) / "knowledge"
+    """知识库文档目录：可由 MINI_CLAUDE_KNOWLEDGE_DIR 覆盖，默认 <data_dir>/knowledge。"""
+    s = settings or get_settings()
+    return s.knowledge_dir or (s.data_dir / "knowledge")
 
 
 def index_dir(settings: Settings | None = None) -> Path:

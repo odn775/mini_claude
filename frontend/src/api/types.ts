@@ -65,6 +65,27 @@ export interface TriageResult {
   advice: string
 }
 
+/** 导诊统计（见 backend/app/services/stats_service.py）。 */
+export interface DeptStat {
+  name: string
+  count: number
+}
+
+export interface SystemStat {
+  name: string
+  count: number
+  departments: DeptStat[]
+}
+
+export interface TriageStats {
+  days: number
+  total_consultations: number
+  triage_count: number
+  emergency_count: number
+  department_count: number
+  systems: SystemStat[]
+}
+
 /** 界面消息模型：历史消息只有 user/assistant，流式中的一轮是 turn。 */
 export type ChatRole = 'user' | 'assistant' | 'error' | 'turn'
 

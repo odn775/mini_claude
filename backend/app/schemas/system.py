@@ -44,3 +44,25 @@ class KbStatus(BaseModel):
     exists: bool
     total_chunks: int
     files: list[str]
+
+
+class DeptStat(BaseModel):
+    name: str
+    count: int
+
+
+class SystemStat(BaseModel):
+    name: str
+    count: int
+    departments: list[DeptStat]
+
+
+class TriageStatsOut(BaseModel):
+    """导诊统计：时间窗内的问诊量 + 按疾病系统的访问分布。"""
+
+    days: int
+    total_consultations: int
+    triage_count: int
+    emergency_count: int
+    department_count: int
+    systems: list[SystemStat]

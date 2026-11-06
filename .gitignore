@@ -30,3 +30,6 @@ Thumbs.db
 # Environment files
 .env
 .env.local
+
+# Runtime data (knowledge index, skills, mcp.json); docs live in docs/departments
+data/

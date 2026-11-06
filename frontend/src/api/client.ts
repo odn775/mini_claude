@@ -7,6 +7,7 @@ import type {
   SessionDetail,
   SessionSummary,
   StreamEvent,
+  TriageStats,
 } from './types'
 
 const BASE = '/api/v1'
@@ -42,6 +43,10 @@ export const api = {
     if (!resp.ok) throw new Error(await detailOf(resp))
     return resp.json()
   },
+
+  /* ── 统计 ── */
+  triageStats: (days: number) =>
+    fetch(`${BASE}/stats/triage?days=${days}`).then(asJson<TriageStats>),
 
   /** 发一条消息并逐条消费 SSE 事件。 */
   streamMessages: async (

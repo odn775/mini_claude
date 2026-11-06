@@ -1,0 +1,2348 @@
+{
+  "meta": {
+    "date": "2026-11-06",
+    "model": "qwen3.7-max",
+    "cases_file": "D:\\my_agent\\mini_claude\\evals\\triage_regression_cases.yaml",
+    "index_info": {
+      "exists": true,
+      "total_chunks": 15,
+      "files": [
+        "内科.md",
+        "呼吸内科.md",
+        "心血管内科.md",
+        "普通外科.md",
+        "消化内科.md",
+        "皮肤科.md",
+        "眼科.md"
+      ]
+    }
+  },
+  "summary": {
+    "total_cases": 24,
+    "passed_cases": 24,
+    "case_pass_rate": 1.0,
+    "total_turns": 25,
+    "passed_turns": 25,
+    "turn_pass_rate": 1.0,
+    "by_category": {
+      "常见症状": {
+        "total": 9,
+        "passed": 9
+      },
+      "新科室检索": {
+        "total": 4,
+        "passed": 4
+      },
+      "边界症状": {
+        "total": 1,
+        "passed": 1
+      },
+      "红旗症状": {
+        "total": 4,
+        "passed": 4
+      },
+      "范围限制": {
+        "total": 3,
+        "passed": 3
+      },
+      "信息不足": {
+        "total": 2,
+        "passed": 2
+      },
+      "多轮对话": {
+        "total": 1,
+        "passed": 1
+      }
+    },
+    "tool_chain_rate": 1.0,
+    "department_rate": 1.0,
+    "urgency_rate": 1.0,
+    "retrieval_hit_rate": 1.0,
+    "retrieval_top1_rate": 0.6666666666666666,
+    "retrieval_total": 9,
+    "red_flag_detect_rate": 1.0,
+    "red_total": 4,
+    "conclusion_total": 19,
+    "text_length_median": 126,
+    "text_over_120_count": 11,
+    "text_over_120_rate": 0.5789473684210527
+  },
+  "results": [
+    {
+      "id": "normal_cough",
+      "category": "常见症状",
+      "description": "呼吸系统主诉（回归 2026-11-06 用例 1）",
+      "pass": true,
+      "turns": [
+        {
+          "input": "最近三天咳嗽有痰，不发烧",
+          "expect": {
+            "mode": "conclusion",
+            "primary": [
+              "呼吸内科"
+            ],
+            "urgency": [
+              "routine"
+            ],
+            "expect_source": "呼吸内科.md"
+          },
+          "run": {
+            "input": "最近三天咳嗽有痰，不发烧",
+            "tool_seq": [
+              "search_knowledge",
+              "recommend_department"
+            ],
+            "tool_calls": [
+              {
+                "name": "search_knowledge",
+                "arguments": {
+                  "query": "咳嗽 咳痰"
+                }
+              },
+              {
+                "name": "recommend_department",
+                "arguments": {
+                  "primary_department": "呼吸内科",
+                  "alternate_department": "",
+                  "urgency": "routine",
+                  "reasoning": "您提到\"最近三天咳嗽有痰，不发烧\"，属于呼吸内科常见症状范围，咳嗽咳痰已持续3天，适合到呼吸内科就诊评估。",
+                  "advice": "建议挂呼吸内科普通号。就诊前记录痰的颜色和性状（白痰/黄痰/是否有血丝）。如近期做过胸片、CT或血常规，请携带报告。无需空腹。"
+                }
+              }
+            ],
+            "search_queries": [
+              "咳嗽 咳痰"
+            ],
+            "retrieved_sources": [
+              "呼吸内科.md",
+              "内科.md",
+              "消化内科.md"
+            ],
+            "recommend_payload": {
+              "primary_department": "呼吸内科",
+              "alternate_department": "",
+              "urgency": "routine",
+              "reasoning": "您提到\"最近三天咳嗽有痰，不发烧\"，属于呼吸内科常见症状范围，咳嗽咳痰已持续3天，适合到呼吸内科就诊评估。",
+              "advice": "建议挂呼吸内科普通号。就诊前记录痰的颜色和性状（白痰/黄痰/是否有血丝）。如近期做过胸片、CT或血常规，请携带报告。无需空腹。"
+            },
+            "final_text": "您的症状**建议到呼吸内科就诊**。\n\n咳嗽咳痰已持续三天，无发热，属于呼吸内科的常见诊疗范围，需由医生判断具体病因。\n\n⬜ 以上为就诊参考，不是诊断结论。",
+            "red_labels": [],
+            "usage": {
+              "input_tokens": 7597,
+              "output_tokens": 475,
+              "cached_tokens": 4608
+            },
+            "latency_ms": 24093
+          },
+          "grade": {
+            "mode": "conclusion",
+            "checks": {
+              "called_recommend": true,
+              "primary_ok": true,
+              "urgency_ok": true,
+              "search_before_recommend": true,
+              "reasoning_nonempty": true,
+              "advice_nonempty": true,
+              "has_text": true
+            },
+            "pass": true,
+            "expected": {
+              "primary": [
+                "呼吸内科"
+              ],
+              "urgency": [
+                "routine"
+              ]
+            },
+            "actual": {
+              "primary": "呼吸内科",
+              "urgency": "routine",
+              "payload": {
+                "primary_department": "呼吸内科",
+                "alternate_department": "",
+                "urgency": "routine",
+                "reasoning": "您提到\"最近三天咳嗽有痰，不发烧\"，属于呼吸内科常见症状范围，咳嗽咳痰已持续3天，适合到呼吸内科就诊评估。",
+                "advice": "建议挂呼吸内科普通号。就诊前记录痰的颜色和性状（白痰/黄痰/是否有血丝）。如近期做过胸片、CT或血常规，请携带报告。无需空腹。"
+              }
+            }
+          },
+          "expected_source": "呼吸内科.md",
+          "source_rank": 1
+        }
+      ]
+    },
+    {
+      "id": "normal_rhinitis",
+      "category": "常见症状",
+      "description": "鼻塞流涕为主且无咳嗽，应走耳鼻喉而不是呼吸内科",
+      "pass": true,
+      "turns": [
+        {
+          "input": "鼻塞流鼻涕两天，嗓子有点痛，没有咳嗽",
+          "expect": {
+            "mode": "conclusion",
+            "primary": [
+              "耳鼻喉科"
+            ],
+            "urgency": [
+              "routine"
+            ]
+          },
+          "run": {
+            "input": "鼻塞流鼻涕两天，嗓子有点痛，没有咳嗽",
+            "tool_seq": [
+              "search_knowledge",
+              "recommend_department"
+            ],
+            "tool_calls": [
+              {
+                "name": "search_knowledge",
+                "arguments": {
+                  "query": "鼻塞 流鼻涕 嗓子痛 咽痛"
+                }
+              },
+              {
+                "name": "recommend_department",
+                "arguments": {
+                  "primary_department": "耳鼻喉科",
+                  "alternate_department": "全科医学科",
+                  "urgency": "routine",
+                  "reasoning": "您有\"鼻塞、流鼻涕两天，嗓子有点痛，没有咳嗽\"，以鼻部和咽部症状为主且无咳嗽咳痰，优先就诊耳鼻喉科。",
+                  "advice": "挂耳鼻喉科普通号即可；就诊前可正常饮食，无需空腹；若有既往检查报告或近期用药记录，请随身携带。"
+                }
+              }
+            ],
+            "search_queries": [
+              "鼻塞 流鼻涕 嗓子痛 咽痛"
+            ],
+            "retrieved_sources": [
+              "呼吸内科.md",
+              "内科.md",
+              "消化内科.md",
+              "普通外科.md"
+            ],
+            "recommend_payload": {
+              "primary_department": "耳鼻喉科",
+              "alternate_department": "全科医学科",
+              "urgency": "routine",
+              "reasoning": "您有\"鼻塞、流鼻涕两天，嗓子有点痛，没有咳嗽\"，以鼻部和咽部症状为主且无咳嗽咳痰，优先就诊耳鼻喉科。",
+              "advice": "挂耳鼻喉科普通号即可；就诊前可正常饮食，无需空腹；若有既往检查报告或近期用药记录，请随身携带。"
+            },
+            "final_text": "根据您的症状，建议优先就诊**耳鼻喉科**，备选**全科医学科**。\n\n您的鼻塞、流鼻涕两天伴嗓子痛，但没有咳嗽，症状集中在鼻部和咽部，适合耳鼻喉科评估。\n\n**就诊建议：**\n- 挂耳鼻喉科普通号即可\n- 无需空腹，可正常饮食\n- 携带既往检查报告或近期用药记录（如有）\n\n以上为就诊参考，具体诊断需由医生面诊判断。",
+            "red_labels": [],
+            "usage": {
+              "input_tokens": 7932,
+              "output_tokens": 778,
+              "cached_tokens": 4608
+            },
+            "latency_ms": 26952
+          },
+          "grade": {
+            "mode": "conclusion",
+            "checks": {
+              "called_recommend": true,
+              "primary_ok": true,
+              "urgency_ok": true,
+              "search_before_recommend": true,
+              "reasoning_nonempty": true,
+              "advice_nonempty": true,
+              "has_text": true
+            },
+            "pass": true,
+            "expected": {
+              "primary": [
+                "耳鼻喉科"
+              ],
+              "urgency": [
+                "routine"
+              ]
+            },
+            "actual": {
+              "primary": "耳鼻喉科",
+              "urgency": "routine",
+              "payload": {
+                "primary_department": "耳鼻喉科",
+                "alternate_department": "全科医学科",
+                "urgency": "routine",
+                "reasoning": "您有\"鼻塞、流鼻涕两天，嗓子有点痛，没有咳嗽\"，以鼻部和咽部症状为主且无咳嗽咳痰，优先就诊耳鼻喉科。",
+                "advice": "挂耳鼻喉科普通号即可；就诊前可正常饮食，无需空腹；若有既往检查报告或近期用药记录，请随身携带。"
+              }
+            }
+          },
+          "expected_source": null,
+          "source_rank": null
+        }
+      ]
+    },
+    {
+      "id": "normal_reflux",
+      "category": "常见症状",
+      "description": "反酸烧心",
+      "pass": true,
+      "turns": [
+        {
+          "input": "最近一周总是反酸烧心，饭后特别明显",
+          "expect": {
+            "mode": "conclusion",
+            "primary": [
+              "消化内科"
+            ],
+            "urgency": [
+              "routine"
+            ],
+            "expect_source": "消化内科.md"
+          },
+          "run": {
+            "input": "最近一周总是反酸烧心，饭后特别明显",
+            "tool_seq": [
+              "search_knowledge",
+              "recommend_department"
+            ],
+            "tool_calls": [
+              {
+                "name": "search_knowledge",
+                "arguments": {
+                  "query": "反酸 烧心"
+                }
+              },
+              {
+                "name": "recommend_department",
+                "arguments": {
+                  "primary_department": "消化内科",
+                  "alternate_department": "全科医学科",
+                  "urgency": "routine",
+                  "reasoning": "用户主诉\"最近一周总是反酸烧心，饭后特别明显\"，属于消化内科典型适用症状（反酸、烧心、与进食相关）。",
+                  "advice": "建议挂消化内科普通号；就诊前建议空腹（可能需要做胃镜或呼气试验查幽门螺杆菌）；携带既往检查报告（如有）。"
+                }
+              }
+            ],
+            "search_queries": [
+              "反酸 烧心"
+            ],
+            "retrieved_sources": [
+              "呼吸内科.md",
+              "内科.md",
+              "消化内科.md"
+            ],
+            "recommend_payload": {
+              "primary_department": "消化内科",
+              "alternate_department": "全科医学科",
+              "urgency": "routine",
+              "reasoning": "用户主诉\"最近一周总是反酸烧心，饭后特别明显\"，属于消化内科典型适用症状（反酸、烧心、与进食相关）。",
+              "advice": "建议挂消化内科普通号；就诊前建议空腹（可能需要做胃镜或呼气试验查幽门螺杆菌）；携带既往检查报告（如有）。"
+            },
+            "final_text": "根据您的症状，建议就诊**消化内科**。\n\n可挂普通号，建议空腹就诊（可能需要做相关检查），如有既往检查报告请携带。\n\n这是就诊参考，具体诊断需医生面诊确定。",
+            "red_labels": [],
+            "usage": {
+              "input_tokens": 7964,
+              "output_tokens": 772,
+              "cached_tokens": 4608
+            },
+            "latency_ms": 24969
+          },
+          "grade": {
+            "mode": "conclusion",
+            "checks": {
+              "called_recommend": true,
+              "primary_ok": true,
+              "urgency_ok": true,
+              "search_before_recommend": true,
+              "reasoning_nonempty": true,
+              "advice_nonempty": true,
+              "has_text": true
+            },
+            "pass": true,
+            "expected": {
+              "primary": [
+                "消化内科"
+              ],
+              "urgency": [
+                "routine"
+              ]
+            },
+            "actual": {
+              "primary": "消化内科",
+              "urgency": "routine",
+              "payload": {
+                "primary_department": "消化内科",
+                "alternate_department": "全科医学科",
+                "urgency": "routine",
+                "reasoning": "用户主诉\"最近一周总是反酸烧心，饭后特别明显\"，属于消化内科典型适用症状（反酸、烧心、与进食相关）。",
+                "advice": "建议挂消化内科普通号；就诊前建议空腹（可能需要做胃镜或呼气试验查幽门螺杆菌）；携带既往检查报告（如有）。"
+              }
+            }
+          },
+          "expected_source": "消化内科.md",
+          "source_rank": 3
+        }
+      ]
+    },
+    {
+      "id": "normal_diarrhea",
+      "category": "常见症状",
+      "description": "急性腹泻",
+      "pass": true,
+      "turns": [
+        {
+          "input": "拉肚子三天了，一天五六次，没有发烧",
+          "expect": {
+            "mode": "conclusion",
+            "primary": [
+              "消化内科"
+            ],
+            "urgency": [
+              "routine",
+              "soon"
+            ],
+            "expect_source": "消化内科.md"
+          },
+          "run": {
+            "input": "拉肚子三天了，一天五六次，没有发烧",
+            "tool_seq": [
+              "search_knowledge",
+              "recommend_department"
+            ],
+            "tool_calls": [
+              {
+                "name": "search_knowledge",
+                "arguments": {
+                  "query": "腹泻 拉肚子"
+                }
+              },
+              {
+                "name": "recommend_department",
+                "arguments": {
+                  "primary_department": "消化内科",
+                  "alternate_department": "",
+                  "urgency": "routine",
+                  "reasoning": "用户\"拉肚子三天，一天五六次，没有发烧\"，符合消化内科\"腹泻超过3天\"的适用症状，且无急危重症表现。",
+                  "advice": "建议挂消化内科普通号。就诊当天尽量空腹，可能需要抽血或查大便常规；若条件允许，可留取新鲜大便样本（1-2小时内）带去医院。近期注意补充水分和电解质，避免油腻、生冷食物。以上为就诊参考，具体以医生面诊为准。"
+                }
+              }
+            ],
+            "search_queries": [
+              "腹泻 拉肚子"
+            ],
+            "retrieved_sources": [
+              "消化内科.md",
+              "呼吸内科.md",
+              "心血管内科.md",
+              "内科.md"
+            ],
+            "recommend_payload": {
+              "primary_department": "消化内科",
+              "alternate_department": "",
+              "urgency": "routine",
+              "reasoning": "用户\"拉肚子三天，一天五六次，没有发烧\"，符合消化内科\"腹泻超过3天\"的适用症状，且无急危重症表现。",
+              "advice": "建议挂消化内科普通号。就诊当天尽量空腹，可能需要抽血或查大便常规；若条件允许，可留取新鲜大便样本（1-2小时内）带去医院。近期注意补充水分和电解质，避免油腻、生冷食物。以上为就诊参考，具体以医生面诊为准。"
+            },
+            "final_text": "建议就诊**消化内科**。\n\n拉肚子已三天、每天五六次，虽无发烧但仍需查明原因。建议挂普通号，就诊前尽量空腹，有条件可留取1-2小时内的新鲜大便样本带去医院。近期注意补水和电解质，避免油腻生冷食物。以上为就诊参考，具体以医生面诊为准。",
+            "red_labels": [],
+            "usage": {
+              "input_tokens": 8161,
+              "output_tokens": 652,
+              "cached_tokens": 3456
+            },
+            "latency_ms": 26110
+          },
+          "grade": {
+            "mode": "conclusion",
+            "checks": {
+              "called_recommend": true,
+              "primary_ok": true,
+              "urgency_ok": true,
+              "search_before_recommend": true,
+              "reasoning_nonempty": true,
+              "advice_nonempty": true,
+              "has_text": true
+            },
+            "pass": true,
+            "expected": {
+              "primary": [
+                "消化内科"
+              ],
+              "urgency": [
+                "routine",
+                "soon"
+              ]
+            },
+            "actual": {
+              "primary": "消化内科",
+              "urgency": "routine",
+              "payload": {
+                "primary_department": "消化内科",
+                "alternate_department": "",
+                "urgency": "routine",
+                "reasoning": "用户\"拉肚子三天，一天五六次，没有发烧\"，符合消化内科\"腹泻超过3天\"的适用症状，且无急危重症表现。",
+                "advice": "建议挂消化内科普通号。就诊当天尽量空腹，可能需要抽血或查大便常规；若条件允许，可留取新鲜大便样本（1-2小时内）带去医院。近期注意补充水分和电解质，避免油腻、生冷食物。以上为就诊参考，具体以医生面诊为准。"
+              }
+            }
+          },
+          "expected_source": "消化内科.md",
+          "source_rank": 1
+        }
+      ]
+    },
+    {
+      "id": "normal_rash",
+      "category": "常见症状",
+      "description": "皮肤红斑瘙痒",
+      "pass": true,
+      "turns": [
+        {
+          "input": "手臂上起了红色疹子，很痒，没有发烧",
+          "expect": {
+            "mode": "conclusion",
+            "primary": [
+              "皮肤科"
+            ],
+            "urgency": [
+              "routine"
+            ],
+            "expect_source": "皮肤科.md"
+          },
+          "run": {
+            "input": "手臂上起了红色疹子，很痒，没有发烧",
+            "tool_seq": [
+              "search_knowledge",
+              "recommend_department"
+            ],
+            "tool_calls": [
+              {
+                "name": "search_knowledge",
+                "arguments": {
+                  "query": "皮疹 瘙痒 红疹"
+                }
+              },
+              {
+                "name": "recommend_department",
+                "arguments": {
+                  "primary_department": "皮肤科",
+                  "alternate_department": "",
+                  "urgency": "routine",
+                  "reasoning": "用户描述\"手臂上起了红色疹子，很痒，没有发烧\"，属于皮肤红斑、皮疹伴瘙痒，无全身症状，符合皮肤科常见就诊范围。",
+                  "advice": "挂皮肤科普通号即可；就诊前24小时避免在患处涂抹药膏或护肤品，以免影响医生观察；可提前拍照记录皮疹变化过程；如近期有接触新物品（护肤品、洗衣液、金属首饰等），建议带上或拍照供医生参考。"
+                }
+              }
+            ],
+            "search_queries": [
+              "皮疹 瘙痒 红疹"
+            ],
+            "retrieved_sources": [
+              "眼科.md",
+              "皮肤科.md",
+              "内科.md"
+            ],
+            "recommend_payload": {
+              "primary_department": "皮肤科",
+              "alternate_department": "",
+              "urgency": "routine",
+              "reasoning": "用户描述\"手臂上起了红色疹子，很痒，没有发烧\"，属于皮肤红斑、皮疹伴瘙痒，无全身症状，符合皮肤科常见就诊范围。",
+              "advice": "挂皮肤科普通号即可；就诊前24小时避免在患处涂抹药膏或护肤品，以免影响医生观察；可提前拍照记录皮疹变化过程；如近期有接触新物品（护肤品、洗衣液、金属首饰等），建议带上或拍照供医生参考。"
+            },
+            "final_text": "建议就诊**皮肤科**。手臂红疹伴瘙痒、无发热，属于皮肤科常见问题。挂普通号即可，就诊前24小时避免在患处涂抹药膏或护肤品，可提前拍照记录皮疹变化。如近期接触过新护肤品、洗衣液等，建议带上供医生参考。",
+            "red_labels": [],
+            "usage": {
+              "input_tokens": 8017,
+              "output_tokens": 601,
+              "cached_tokens": 4608
+            },
+            "latency_ms": 24093
+          },
+          "grade": {
+            "mode": "conclusion",
+            "checks": {
+              "called_recommend": true,
+              "primary_ok": true,
+              "urgency_ok": true,
+              "search_before_recommend": true,
+              "reasoning_nonempty": true,
+              "advice_nonempty": true,
+              "has_text": true
+            },
+            "pass": true,
+            "expected": {
+              "primary": [
+                "皮肤科"
+              ],
+              "urgency": [
+                "routine"
+              ]
+            },
+            "actual": {
+              "primary": "皮肤科",
+              "urgency": "routine",
+              "payload": {
+                "primary_department": "皮肤科",
+                "alternate_department": "",
+                "urgency": "routine",
+                "reasoning": "用户描述\"手臂上起了红色疹子，很痒，没有发烧\"，属于皮肤红斑、皮疹伴瘙痒，无全身症状，符合皮肤科常见就诊范围。",
+                "advice": "挂皮肤科普通号即可；就诊前24小时避免在患处涂抹药膏或护肤品，以免影响医生观察；可提前拍照记录皮疹变化过程；如近期有接触新物品（护肤品、洗衣液、金属首饰等），建议带上或拍照供医生参考。"
+              }
+            }
+          },
+          "expected_source": "皮肤科.md",
+          "source_rank": 2
+        }
+      ]
+    },
+    {
+      "id": "normal_eye",
+      "category": "新科室检索",
+      "description": "眼科新增文档 + 突发视力下降（回归 2026-11-06 用例 2）；知识库把突发视力下降列为眼科急症，紧急程度允许 soon/emergency",
+      "pass": true,
+      "turns": [
+        {
+          "input": "眼睛有点干涩，左眼看东西突然迷糊很多",
+          "expect": {
+            "mode": "conclusion",
+            "primary": [
+              "眼科"
+            ],
+            "urgency": [
+              "soon",
+              "emergency"
+            ],
+            "expect_source": "眼科.md"
+          },
+          "run": {
+            "input": "眼睛有点干涩，左眼看东西突然迷糊很多",
+            "tool_seq": [
+              "search_knowledge",
+              "recommend_department"
+            ],
+            "tool_calls": [
+              {
+                "name": "search_knowledge",
+                "arguments": {
+                  "query": "视力突然下降 视物模糊 眼睛干涩"
+                }
+              },
+              {
+                "name": "recommend_department",
+                "arguments": {
+                  "primary_department": "眼科",
+                  "alternate_department": "",
+                  "urgency": "soon",
+                  "reasoning": "用户描述\"左眼看东西突然迷糊很多\"，突发单眼视力下降属于眼科需要尽快评估的情况，需排除眼底病变等急症。",
+                  "advice": "建议当天或24小时内就诊眼科门诊或急诊眼科。就诊前不要自行使用眼药水，检查当天素颜前往，不要戴隐形眼镜。如需散瞳检查当天不要开车，最好有人陪同。带上既往眼部检查报告及正在使用的眼药水。"
+                }
+              }
+            ],
+            "search_queries": [
+              "视力突然下降 视物模糊 眼睛干涩"
+            ],
+            "retrieved_sources": [
+              "眼科.md",
+              "皮肤科.md",
+              "内科.md",
+              "心血管内科.md"
+            ],
+            "recommend_payload": {
+              "primary_department": "眼科",
+              "alternate_department": "",
+              "urgency": "soon",
+              "reasoning": "用户描述\"左眼看东西突然迷糊很多\"，突发单眼视力下降属于眼科需要尽快评估的情况，需排除眼底病变等急症。",
+              "advice": "建议当天或24小时内就诊眼科门诊或急诊眼科。就诊前不要自行使用眼药水，检查当天素颜前往，不要戴隐形眼镜。如需散瞳检查当天不要开车，最好有人陪同。带上既往眼部检查报告及正在使用的眼药水。"
+            },
+            "final_text": "**建议科室**: 眼科\n\n您描述的\"左眼看东西突然迷糊很多\"属于突发单眼视力下降，需要尽快由眼科医生进行评估，以排除眼底病变等严重情况。\n\n**就诊建议**:\n建议您在24小时内前往眼科门诊或急诊眼科就诊。就诊前请勿自行使用眼药水，检查当天建议素颜前往，不要佩戴隐形眼镜。如果需要散瞳检查，当天请不要开车，最好有人陪同。请带上既往的眼部检查报告以及您正在使用的任何眼药水。\n\n*请注意，这仅为就诊参考，不能替代医生的专业诊断。*",
+            "red_labels": [],
+            "usage": {
+              "input_tokens": 8419,
+              "output_tokens": 1224,
+              "cached_tokens": 4608
+            },
+            "latency_ms": 32375
+          },
+          "grade": {
+            "mode": "conclusion",
+            "checks": {
+              "called_recommend": true,
+              "primary_ok": true,
+              "urgency_ok": true,
+              "search_before_recommend": true,
+              "reasoning_nonempty": true,
+              "advice_nonempty": true,
+              "has_text": true
+            },
+            "pass": true,
+            "expected": {
+              "primary": [
+                "眼科"
+              ],
+              "urgency": [
+                "soon",
+                "emergency"
+              ]
+            },
+            "actual": {
+              "primary": "眼科",
+              "urgency": "soon",
+              "payload": {
+                "primary_department": "眼科",
+                "alternate_department": "",
+                "urgency": "soon",
+                "reasoning": "用户描述\"左眼看东西突然迷糊很多\"，突发单眼视力下降属于眼科需要尽快评估的情况，需排除眼底病变等急症。",
+                "advice": "建议当天或24小时内就诊眼科门诊或急诊眼科。就诊前不要自行使用眼药水，检查当天素颜前往，不要戴隐形眼镜。如需散瞳检查当天不要开车，最好有人陪同。带上既往眼部检查报告及正在使用的眼药水。"
+              }
+            }
+          },
+          "expected_source": "眼科.md",
+          "source_rank": 1
+        }
+      ]
+    },
+    {
+      "id": "normal_knee",
+      "category": "常见症状",
+      "description": "膝关节疼痛",
+      "pass": true,
+      "turns": [
+        {
+          "input": "膝盖疼了一周，上下楼梯时更明显",
+          "expect": {
+            "mode": "conclusion",
+            "primary": [
+              "骨科"
+            ],
+            "urgency": [
+              "routine",
+              "soon"
+            ]
+          },
+          "run": {
+            "input": "膝盖疼了一周，上下楼梯时更明显",
+            "tool_seq": [
+              "search_knowledge",
+              "recommend_department"
+            ],
+            "tool_calls": [
+              {
+                "name": "search_knowledge",
+                "arguments": {
+                  "query": "膝盖疼 上下楼梯 关节痛"
+                }
+              },
+              {
+                "name": "recommend_department",
+                "arguments": {
+                  "primary_department": "骨科",
+                  "alternate_department": "",
+                  "urgency": "routine",
+                  "reasoning": "用户主诉\"膝盖疼了一周，上下楼梯时更明显\"，属于膝关节疼痛，符合骨科就诊范围。",
+                  "advice": "挂骨科普通号即可。就诊前记录疼痛部位、加重或缓解因素，避免剧烈活动。携带既往膝关节影像检查（如X光、MRI）及病历资料。无需空腹。"
+                }
+              }
+            ],
+            "search_queries": [
+              "膝盖疼 上下楼梯 关节痛"
+            ],
+            "retrieved_sources": [
+              "心血管内科.md",
+              "内科.md",
+              "消化内科.md",
+              "普通外科.md",
+              "眼科.md"
+            ],
+            "recommend_payload": {
+              "primary_department": "骨科",
+              "alternate_department": "",
+              "urgency": "routine",
+              "reasoning": "用户主诉\"膝盖疼了一周，上下楼梯时更明显\"，属于膝关节疼痛，符合骨科就诊范围。",
+              "advice": "挂骨科普通号即可。就诊前记录疼痛部位、加重或缓解因素，避免剧烈活动。携带既往膝关节影像检查（如X光、MRI）及病历资料。无需空腹。"
+            },
+            "final_text": "建议您前往**骨科**就诊。\n\n您\"膝盖疼了一周，上下楼梯时更明显\"，属于膝关节问题，适合骨科排查。建议挂骨科普通号，带上既往影像资料（如X光或MRI），近期减少爬楼等活动。以上为就诊参考，具体以医生面诊为准。",
+            "red_labels": [],
+            "usage": {
+              "input_tokens": 7293,
+              "output_tokens": 1120,
+              "cached_tokens": 3456
+            },
+            "latency_ms": 27327
+          },
+          "grade": {
+            "mode": "conclusion",
+            "checks": {
+              "called_recommend": true,
+              "primary_ok": true,
+              "urgency_ok": true,
+              "search_before_recommend": true,
+              "reasoning_nonempty": true,
+              "advice_nonempty": true,
+              "has_text": true
+            },
+            "pass": true,
+            "expected": {
+              "primary": [
+                "骨科"
+              ],
+              "urgency": [
+                "routine",
+                "soon"
+              ]
+            },
+            "actual": {
+              "primary": "骨科",
+              "urgency": "routine",
+              "payload": {
+                "primary_department": "骨科",
+                "alternate_department": "",
+                "urgency": "routine",
+                "reasoning": "用户主诉\"膝盖疼了一周，上下楼梯时更明显\"，属于膝关节疼痛，符合骨科就诊范围。",
+                "advice": "挂骨科普通号即可。就诊前记录疼痛部位、加重或缓解因素，避免剧烈活动。携带既往膝关节影像检查（如X光、MRI）及病历资料。无需空腹。"
+              }
+            }
+          },
+          "expected_source": null,
+          "source_rank": null
+        }
+      ]
+    },
+    {
+      "id": "normal_dizzy",
+      "category": "常见症状",
+      "description": "眩晕伴恶心",
+      "pass": true,
+      "turns": [
+        {
+          "input": "最近反复头晕，感觉天旋地转，还犯恶心",
+          "expect": {
+            "mode": "conclusion",
+            "primary": [
+              "神经内科"
+            ],
+            "urgency": [
+              "routine",
+              "soon"
+            ]
+          },
+          "run": {
+            "input": "最近反复头晕，感觉天旋地转，还犯恶心",
+            "tool_seq": [
+              "search_knowledge",
+              "recommend_department"
+            ],
+            "tool_calls": [
+              {
+                "name": "search_knowledge",
+                "arguments": {
+                  "query": "头晕 眩晕 天旋地转 恶心"
+                }
+              },
+              {
+                "name": "recommend_department",
+                "arguments": {
+                  "primary_department": "神经内科",
+                  "alternate_department": "耳鼻喉科",
+                  "urgency": "soon",
+                  "reasoning": "用户主诉\"反复头晕，感觉天旋地转，还犯恶心\"，符合眩晕典型表现，需神经内科排查前庭及中枢性原因；若伴耳鸣、听力变化，也可考虑耳鼻喉科（内耳相关眩晕）。",
+                  "advice": "建议挂神经内科普通号或眩晕专病门诊；就诊前记录每次发作持续时间、诱发动作（如转头、起床）、是否伴耳鸣或听力下降；携带既往检查报告；就诊当天避免独自驾车，建议有人陪同。"
+                }
+              }
+            ],
+            "search_queries": [
+              "头晕 眩晕 天旋地转 恶心"
+            ],
+            "retrieved_sources": [
+              "眼科.md",
+              "内科.md",
+              "消化内科.md",
+              "心血管内科.md",
+              "呼吸内科.md"
+            ],
+            "recommend_payload": {
+              "primary_department": "神经内科",
+              "alternate_department": "耳鼻喉科",
+              "urgency": "soon",
+              "reasoning": "用户主诉\"反复头晕，感觉天旋地转，还犯恶心\"，符合眩晕典型表现，需神经内科排查前庭及中枢性原因；若伴耳鸣、听力变化，也可考虑耳鼻喉科（内耳相关眩晕）。",
+              "advice": "建议挂神经内科普通号或眩晕专病门诊；就诊前记录每次发作持续时间、诱发动作（如转头、起床）、是否伴耳鸣或听力下降；携带既往检查报告；就诊当天避免独自驾车，建议有人陪同。"
+            },
+            "final_text": "建议优先就诊**神经内科**，备选**耳鼻喉科**。\n\n建议 24-48 小时内尽快就诊，挂神经内科普通号或眩晕专病门诊；记录发作时长、诱发动作及是否伴耳鸣；就诊当天避免独自驾车，有人陪同为宜。\n\n*以上为就诊参考，非诊断结论，具体由医生面诊判断。*",
+            "red_labels": [],
+            "usage": {
+              "input_tokens": 8154,
+              "output_tokens": 1159,
+              "cached_tokens": 4608
+            },
+            "latency_ms": 33141
+          },
+          "grade": {
+            "mode": "conclusion",
+            "checks": {
+              "called_recommend": true,
+              "primary_ok": true,
+              "urgency_ok": true,
+              "search_before_recommend": true,
+              "reasoning_nonempty": true,
+              "advice_nonempty": true,
+              "has_text": true
+            },
+            "pass": true,
+            "expected": {
+              "primary": [
+                "神经内科"
+              ],
+              "urgency": [
+                "routine",
+                "soon"
+              ]
+            },
+            "actual": {
+              "primary": "神经内科",
+              "urgency": "soon",
+              "payload": {
+                "primary_department": "神经内科",
+                "alternate_department": "耳鼻喉科",
+                "urgency": "soon",
+                "reasoning": "用户主诉\"反复头晕，感觉天旋地转，还犯恶心\"，符合眩晕典型表现，需神经内科排查前庭及中枢性原因；若伴耳鸣、听力变化，也可考虑耳鼻喉科（内耳相关眩晕）。",
+                "advice": "建议挂神经内科普通号或眩晕专病门诊；就诊前记录每次发作持续时间、诱发动作（如转头、起床）、是否伴耳鸣或听力下降；携带既往检查报告；就诊当天避免独自驾车，建议有人陪同。"
+              }
+            }
+          },
+          "expected_source": null,
+          "source_rank": null
+        }
+      ]
+    },
+    {
+      "id": "normal_palp",
+      "category": "新科室检索",
+      "description": "心悸心慌 → 心血管内科（检验新增文档覆盖）",
+      "pass": true,
+      "turns": [
+        {
+          "input": "最近总是心慌心悸，感觉心跳不规律",
+          "expect": {
+            "mode": "conclusion",
+            "primary": [
+              "心血管内科"
+            ],
+            "urgency": [
+              "routine",
+              "soon"
+            ],
+            "expect_source": "心血管内科.md"
+          },
+          "run": {
+            "input": "最近总是心慌心悸，感觉心跳不规律",
+            "tool_seq": [
+              "search_knowledge",
+              "recommend_department"
+            ],
+            "tool_calls": [
+              {
+                "name": "search_knowledge",
+                "arguments": {
+                  "query": "心慌 心悸 心跳不规律"
+                }
+              },
+              {
+                "name": "recommend_department",
+                "arguments": {
+                  "primary_department": "心血管内科",
+                  "alternate_department": "",
+                  "urgency": "soon",
+                  "reasoning": "您描述\"心慌心悸，感觉心跳不规律\"，与心血管内科适用的心律失常（早搏、房颤等）症状高度吻合。",
+                  "advice": "建议24-48小时内就诊，挂心血管内科门诊；就诊前避免咖啡、浓茶等刺激性饮品，保持休息；如有既往心电图或体检报告请携带；若突发胸痛、呼吸困难或晕厥，请立即拨打120前往急诊。"
+                }
+              }
+            ],
+            "search_queries": [
+              "心慌 心悸 心跳不规律"
+            ],
+            "retrieved_sources": [
+              "内科.md",
+              "心血管内科.md",
+              "呼吸内科.md"
+            ],
+            "recommend_payload": {
+              "primary_department": "心血管内科",
+              "alternate_department": "",
+              "urgency": "soon",
+              "reasoning": "您描述\"心慌心悸，感觉心跳不规律\"，与心血管内科适用的心律失常（早搏、房颤等）症状高度吻合。",
+              "advice": "建议24-48小时内就诊，挂心血管内科门诊；就诊前避免咖啡、浓茶等刺激性饮品，保持休息；如有既往心电图或体检报告请携带；若突发胸痛、呼吸困难或晕厥，请立即拨打120前往急诊。"
+            },
+            "final_text": "建议就诊**心血管内科**。\n\n您描述的心慌、心悸、心跳不规律症状与心律失常（如早搏、房颤）表现相符，建议24-48小时内就诊评估。就诊前避免咖啡、浓茶，携带既往心电图或体检报告。若突发胸痛、呼吸困难或晕厥，请立即拨打120。",
+            "red_labels": [],
+            "usage": {
+              "input_tokens": 8106,
+              "output_tokens": 1037,
+              "cached_tokens": 4608
+            },
+            "latency_ms": 28842
+          },
+          "grade": {
+            "mode": "conclusion",
+            "checks": {
+              "called_recommend": true,
+              "primary_ok": true,
+              "urgency_ok": true,
+              "search_before_recommend": true,
+              "reasoning_nonempty": true,
+              "advice_nonempty": true,
+              "has_text": true
+            },
+            "pass": true,
+            "expected": {
+              "primary": [
+                "心血管内科"
+              ],
+              "urgency": [
+                "routine",
+                "soon"
+              ]
+            },
+            "actual": {
+              "primary": "心血管内科",
+              "urgency": "soon",
+              "payload": {
+                "primary_department": "心血管内科",
+                "alternate_department": "",
+                "urgency": "soon",
+                "reasoning": "您描述\"心慌心悸，感觉心跳不规律\"，与心血管内科适用的心律失常（早搏、房颤等）症状高度吻合。",
+                "advice": "建议24-48小时内就诊，挂心血管内科门诊；就诊前避免咖啡、浓茶等刺激性饮品，保持休息；如有既往心电图或体检报告请携带；若突发胸痛、呼吸困难或晕厥，请立即拨打120前往急诊。"
+              }
+            }
+          },
+          "expected_source": "心血管内科.md",
+          "source_rank": 2
+        }
+      ]
+    },
+    {
+      "id": "normal_htn",
+      "category": "新科室检索",
+      "description": "高血压控制不佳 → 心血管内科",
+      "pass": true,
+      "turns": [
+        {
+          "input": "高血压好几年了，最近血压一直控制不好",
+          "expect": {
+            "mode": "conclusion",
+            "primary": [
+              "心血管内科"
+            ],
+            "urgency": [
+              "routine",
+              "soon"
+            ],
+            "expect_source": "心血管内科.md"
+          },
+          "run": {
+            "input": "高血压好几年了，最近血压一直控制不好",
+            "tool_seq": [
+              "search_knowledge",
+              "recommend_department"
+            ],
+            "tool_calls": [
+              {
+                "name": "search_knowledge",
+                "arguments": {
+                  "query": "高血压 血压控制不好"
+                }
+              },
+              {
+                "name": "recommend_department",
+                "arguments": {
+                  "primary_department": "心血管内科",
+                  "alternate_department": "全科医学科",
+                  "urgency": "soon",
+                  "reasoning": "用户\"高血压好几年了，最近血压一直控制不好\"，属于已知高血压血压控制不佳，需心血管内科评估并调整降压方案。",
+                  "advice": "就诊前连续3–7天早晚各测一次血压并记录；带上正在服用的降压药药盒或药物清单，不要自行停药；建议空腹前往，可能需要抽血查血脂、血糖、肾功能等。"
+                }
+              }
+            ],
+            "search_queries": [
+              "高血压 血压控制不好"
+            ],
+            "retrieved_sources": [
+              "心血管内科.md",
+              "内科.md",
+              "皮肤科.md"
+            ],
+            "recommend_payload": {
+              "primary_department": "心血管内科",
+              "alternate_department": "全科医学科",
+              "urgency": "soon",
+              "reasoning": "用户\"高血压好几年了，最近血压一直控制不好\"，属于已知高血压血压控制不佳，需心血管内科评估并调整降压方案。",
+              "advice": "就诊前连续3–7天早晚各测一次血压并记录；带上正在服用的降压药药盒或药物清单，不要自行停药；建议空腹前往，可能需要抽血查血脂、血糖、肾功能等。"
+            },
+            "final_text": "**建议就诊科室：心血管内科**\n\n你高血压多年且近期控制不佳，属于需要调整降压方案的情况，建议24-48小时内尽快到心血管内科就诊。\n\n**就诊建议：**\n- 就诊前连续3-7天早晚各测一次血压并记录\n- 带上正在服用的降压药药盒或药物清单，不要自行停药\n- 建议空腹前往，可能需要抽血查血脂、血糖、肾功能等\n\n*注：以上为就诊参考，具体诊疗请遵医嘱。*",
+            "red_labels": [],
+            "usage": {
+              "input_tokens": 8163,
+              "output_tokens": 850,
+              "cached_tokens": 3456
+            },
+            "latency_ms": 26547
+          },
+          "grade": {
+            "mode": "conclusion",
+            "checks": {
+              "called_recommend": true,
+              "primary_ok": true,
+              "urgency_ok": true,
+              "search_before_recommend": true,
+              "reasoning_nonempty": true,
+              "advice_nonempty": true,
+              "has_text": true
+            },
+            "pass": true,
+            "expected": {
+              "primary": [
+                "心血管内科"
+              ],
+              "urgency": [
+                "routine",
+                "soon"
+              ]
+            },
+            "actual": {
+              "primary": "心血管内科",
+              "urgency": "soon",
+              "payload": {
+                "primary_department": "心血管内科",
+                "alternate_department": "全科医学科",
+                "urgency": "soon",
+                "reasoning": "用户\"高血压好几年了，最近血压一直控制不好\"，属于已知高血压血压控制不佳，需心血管内科评估并调整降压方案。",
+                "advice": "就诊前连续3–7天早晚各测一次血压并记录；带上正在服用的降压药药盒或药物清单，不要自行停药；建议空腹前往，可能需要抽血查血脂、血糖、肾功能等。"
+              }
+            }
+          },
+          "expected_source": "心血管内科.md",
+          "source_rank": 1
+        }
+      ]
+    },
+    {
+      "id": "normal_hernia",
+      "category": "新科室检索",
+      "description": "腹股沟可复性包块 → 普通外科",
+      "pass": true,
+      "turns": [
+        {
+          "input": "肚子上摸到一个包，用力的时候会鼓起来，躺下又没了",
+          "expect": {
+            "mode": "conclusion",
+            "primary": [
+              "普通外科"
+            ],
+            "urgency": [
+              "routine",
+              "soon"
+            ],
+            "expect_source": "普通外科.md"
+          },
+          "run": {
+            "input": "肚子上摸到一个包，用力的时候会鼓起来，躺下又没了",
+            "tool_seq": [
+              "search_knowledge",
+              "recommend_department"
+            ],
+            "tool_calls": [
+              {
+                "name": "search_knowledge",
+                "arguments": {
+                  "query": "腹部包块 疝气 用力鼓起 躺下消失"
+                }
+              },
+              {
+                "name": "recommend_department",
+                "arguments": {
+                  "primary_department": "普通外科",
+                  "alternate_department": "",
+                  "urgency": "routine",
+                  "reasoning": "您描述\"肚子上摸到一个包，用力时会鼓起来，躺下又没了\"，这是疝气（腹壁疝/腹股沟疝）的典型表现，属于普通外科的诊疗范围。",
+                  "advice": "挂普通外科普通号即可，建议上午就诊，便于当天完成腹部超声检查。就诊前记录包块出现的时间、大小变化及是否有疼痛感。若突然出现包块不能回纳、剧烈腹痛、呕吐不止，请立即去急诊。"
+                }
+              }
+            ],
+            "search_queries": [
+              "腹部包块 疝气 用力鼓起 躺下消失"
+            ],
+            "retrieved_sources": [
+              "普通外科.md",
+              "内科.md",
+              "心血管内科.md"
+            ],
+            "recommend_payload": {
+              "primary_department": "普通外科",
+              "alternate_department": "",
+              "urgency": "routine",
+              "reasoning": "您描述\"肚子上摸到一个包，用力时会鼓起来，躺下又没了\"，这是疝气（腹壁疝/腹股沟疝）的典型表现，属于普通外科的诊疗范围。",
+              "advice": "挂普通外科普通号即可，建议上午就诊，便于当天完成腹部超声检查。就诊前记录包块出现的时间、大小变化及是否有疼痛感。若突然出现包块不能回纳、剧烈腹痛、呕吐不止，请立即去急诊。"
+            },
+            "final_text": "建议就诊**普通外科**。\n\n您描述的\"肚子用力时鼓包、躺下消失\"是疝气的典型表现，属于普通外科的诊疗范围。建议挂普通外科普通号，上午就诊便于当天做超声检查。以上仅为就诊参考，非诊断结论。\n\n⚠️ 若突然出现包块不能回纳、剧烈腹痛或呕吐不止，请立即去急诊。",
+            "red_labels": [],
+            "usage": {
+              "input_tokens": 7914,
+              "output_tokens": 825,
+              "cached_tokens": 4608
+            },
+            "latency_ms": 27265
+          },
+          "grade": {
+            "mode": "conclusion",
+            "checks": {
+              "called_recommend": true,
+              "primary_ok": true,
+              "urgency_ok": true,
+              "search_before_recommend": true,
+              "reasoning_nonempty": true,
+              "advice_nonempty": true,
+              "has_text": true
+            },
+            "pass": true,
+            "expected": {
+              "primary": [
+                "普通外科"
+              ],
+              "urgency": [
+                "routine",
+                "soon"
+              ]
+            },
+            "actual": {
+              "primary": "普通外科",
+              "urgency": "routine",
+              "payload": {
+                "primary_department": "普通外科",
+                "alternate_department": "",
+                "urgency": "routine",
+                "reasoning": "您描述\"肚子上摸到一个包，用力时会鼓起来，躺下又没了\"，这是疝气（腹壁疝/腹股沟疝）的典型表现，属于普通外科的诊疗范围。",
+                "advice": "挂普通外科普通号即可，建议上午就诊，便于当天完成腹部超声检查。就诊前记录包块出现的时间、大小变化及是否有疼痛感。若突然出现包块不能回纳、剧烈腹痛、呕吐不止，请立即去急诊。"
+              }
+            }
+          },
+          "expected_source": "普通外科.md",
+          "source_rank": 1
+        }
+      ]
+    },
+    {
+      "id": "normal_peds",
+      "category": "常见症状",
+      "description": "儿童发热咳嗽 → 儿科",
+      "pass": true,
+      "turns": [
+        {
+          "input": "孩子五岁，发烧38度，还有点咳嗽",
+          "expect": {
+            "mode": "conclusion",
+            "primary": [
+              "儿科"
+            ],
+            "urgency": [
+              "routine",
+              "soon"
+            ]
+          },
+          "run": {
+            "input": "孩子五岁，发烧38度，还有点咳嗽",
+            "tool_seq": [
+              "search_knowledge",
+              "recommend_department"
+            ],
+            "tool_calls": [
+              {
+                "name": "search_knowledge",
+                "arguments": {
+                  "query": "儿童发热 咳嗽 儿科"
+                }
+              },
+              {
+                "name": "recommend_department",
+                "arguments": {
+                  "primary_department": "儿科",
+                  "alternate_department": "",
+                  "urgency": "soon",
+                  "reasoning": "5岁儿童出现发热38度伴咳嗽，根据分诊原则14岁以下儿童发热咳嗽应优先儿科就诊。",
+                  "advice": "建议挂儿科普通号，24-48小时内就诊。就诊前记录体温变化和咳嗽情况，无需空腹。如体温持续升高超过38.5度、出现呼吸急促或精神萎靡，应立即前往急诊。"
+                }
+              }
+            ],
+            "search_queries": [
+              "儿童发热 咳嗽 儿科"
+            ],
+            "retrieved_sources": [
+              "呼吸内科.md",
+              "眼科.md",
+              "内科.md",
+              "消化内科.md"
+            ],
+            "recommend_payload": {
+              "primary_department": "儿科",
+              "alternate_department": "",
+              "urgency": "soon",
+              "reasoning": "5岁儿童出现发热38度伴咳嗽，根据分诊原则14岁以下儿童发热咳嗽应优先儿科就诊。",
+              "advice": "建议挂儿科普通号，24-48小时内就诊。就诊前记录体温变化和咳嗽情况，无需空腹。如体温持续升高超过38.5度、出现呼吸急促或精神萎靡，应立即前往急诊。"
+            },
+            "final_text": "建议带孩子前往**儿科**就诊。\n\n孩子5岁，发热38度伴咳嗽，属于儿科常见症状，建议24-48小时内尽快就诊。请记录体温变化和咳嗽情况，就诊无需空腹。若体温持续升高超过38.5度、呼吸急促或精神萎靡，请立即前往急诊。此为分诊参考，具体以医生诊断为准。",
+            "red_labels": [],
+            "usage": {
+              "input_tokens": 7576,
+              "output_tokens": 785,
+              "cached_tokens": 3456
+            },
+            "latency_ms": 28515
+          },
+          "grade": {
+            "mode": "conclusion",
+            "checks": {
+              "called_recommend": true,
+              "primary_ok": true,
+              "urgency_ok": true,
+              "search_before_recommend": true,
+              "reasoning_nonempty": true,
+              "advice_nonempty": true,
+              "has_text": true
+            },
+            "pass": true,
+            "expected": {
+              "primary": [
+                "儿科"
+              ],
+              "urgency": [
+                "routine",
+                "soon"
+              ]
+            },
+            "actual": {
+              "primary": "儿科",
+              "urgency": "soon",
+              "payload": {
+                "primary_department": "儿科",
+                "alternate_department": "",
+                "urgency": "soon",
+                "reasoning": "5岁儿童出现发热38度伴咳嗽，根据分诊原则14岁以下儿童发热咳嗽应优先儿科就诊。",
+                "advice": "建议挂儿科普通号，24-48小时内就诊。就诊前记录体温变化和咳嗽情况，无需空腹。如体温持续升高超过38.5度、出现呼吸急促或精神萎靡，应立即前往急诊。"
+              }
+            }
+          },
+          "expected_source": null,
+          "source_rank": null
+        }
+      ]
+    },
+    {
+      "id": "normal_dysmenorrhea",
+      "category": "常见症状",
+      "description": "痛经 → 妇产科",
+      "pass": true,
+      "turns": [
+        {
+          "input": "每次来月经都痛经，疼得要吃止痛药",
+          "expect": {
+            "mode": "conclusion",
+            "primary": [
+              "妇产科"
+            ],
+            "urgency": [
+              "routine",
+              "soon"
+            ]
+          },
+          "run": {
+            "input": "每次来月经都痛经，疼得要吃止痛药",
+            "tool_seq": [
+              "search_knowledge",
+              "recommend_department",
+              "search_knowledge"
+            ],
+            "tool_calls": [
+              {
+                "name": "search_knowledge",
+                "arguments": {
+                  "query": "痛经 月经"
+                }
+              },
+              {
+                "name": "recommend_department",
+                "arguments": {
+                  "primary_department": "妇产科",
+                  "alternate_department": "",
+                  "urgency": "routine",
+                  "reasoning": "用户主诉每次来月经都痛经且需服用止痛药，属于明确的月经相关问题，符合妇产科诊疗范围。",
+                  "advice": "建议挂妇科门诊。就诊前可记录好月经周期、痛经持续时间、经血量及止痛药使用情况，医生可能会安排盆腔B超等检查以排查痛经原因。"
+                }
+              },
+              {
+                "name": "search_knowledge",
+                "arguments": {
+                  "query": "痛经 月经"
+                }
+              }
+            ],
+            "search_queries": [
+              "痛经 月经",
+              "痛经 月经"
+            ],
+            "retrieved_sources": [
+              "内科.md",
+              "呼吸内科.md",
+              "心血管内科.md",
+              "消化内科.md"
+            ],
+            "recommend_payload": {
+              "primary_department": "妇产科",
+              "alternate_department": "",
+              "urgency": "routine",
+              "reasoning": "用户主诉每次来月经都痛经且需服用止痛药，属于明确的月经相关问题，符合妇产科诊疗范围。",
+              "advice": "建议挂妇科门诊。就诊前可记录好月经周期、痛经持续时间、经血量及止痛药使用情况，医生可能会安排盆腔B超等检查以排查痛经原因。"
+            },
+            "final_text": "建议去**妇产科**就诊。\n\n每次月经都痛经且需服止痛药，属于典型的月经相关问题，应优先看妇科。医生会通过检查排查痛经原因（如子宫内膜异位症等），给出针对性治疗方案，而不是长期依赖止痛药。\n\n**就诊建议：**\n- 挂妇科普通号即可\n- 记录好月经周期、痛经天数、经血量及止痛药使用情况\n- 可能需做盆腔B超，无需特殊准备\n\n*这是就诊参考，具体诊断需医生面诊。*",
+            "red_labels": [],
+            "usage": {
+              "input_tokens": 12236,
+              "output_tokens": 1901,
+              "cached_tokens": 5760
+            },
+            "latency_ms": 53264
+          },
+          "grade": {
+            "mode": "conclusion",
+            "checks": {
+              "called_recommend": true,
+              "primary_ok": true,
+              "urgency_ok": true,
+              "search_before_recommend": true,
+              "reasoning_nonempty": true,
+              "advice_nonempty": true,
+              "has_text": true
+            },
+            "pass": true,
+            "expected": {
+              "primary": [
+                "妇产科"
+              ],
+              "urgency": [
+                "routine",
+                "soon"
+              ]
+            },
+            "actual": {
+              "primary": "妇产科",
+              "urgency": "routine",
+              "payload": {
+                "primary_department": "妇产科",
+                "alternate_department": "",
+                "urgency": "routine",
+                "reasoning": "用户主诉每次来月经都痛经且需服用止痛药，属于明确的月经相关问题，符合妇产科诊疗范围。",
+                "advice": "建议挂妇科门诊。就诊前可记录好月经周期、痛经持续时间、经血量及止痛药使用情况，医生可能会安排盆腔B超等检查以排查痛经原因。"
+              }
+            }
+          },
+          "expected_source": null,
+          "source_rank": null
+        }
+      ]
+    },
+    {
+      "id": "normal_uti",
+      "category": "边界症状",
+      "description": "尿路刺激征，肾内科/泌尿外科均属合理归属",
+      "pass": true,
+      "turns": [
+        {
+          "input": "尿频尿急尿痛两天了",
+          "expect": {
+            "mode": "conclusion",
+            "primary": [
+              "肾内科",
+              "泌尿外科"
+            ],
+            "urgency": [
+              "routine",
+              "soon"
+            ]
+          },
+          "run": {
+            "input": "尿频尿急尿痛两天了",
+            "tool_seq": [
+              "search_knowledge",
+              "recommend_department"
+            ],
+            "tool_calls": [
+              {
+                "name": "search_knowledge",
+                "arguments": {
+                  "query": "尿频 尿急 尿痛"
+                }
+              },
+              {
+                "name": "recommend_department",
+                "arguments": {
+                  "primary_department": "肾内科",
+                  "alternate_department": "泌尿外科",
+                  "urgency": "soon",
+                  "reasoning": "用户主诉\"尿频尿急尿痛两天\"，属于典型的泌尿系统症状，符合肾内科就诊范围。",
+                  "advice": "建议24-48小时内就诊，挂肾内科普通号；就诊前可适量饮水，留取中段尿以便做尿常规检查；如有既往尿检或肾功能报告请携带；女性患者如伴发热、腰痛需尽快就医。"
+                }
+              }
+            ],
+            "search_queries": [
+              "尿频 尿急 尿痛"
+            ],
+            "retrieved_sources": [
+              "消化内科.md",
+              "普通外科.md",
+              "内科.md"
+            ],
+            "recommend_payload": {
+              "primary_department": "肾内科",
+              "alternate_department": "泌尿外科",
+              "urgency": "soon",
+              "reasoning": "用户主诉\"尿频尿急尿痛两天\"，属于典型的泌尿系统症状，符合肾内科就诊范围。",
+              "advice": "建议24-48小时内就诊，挂肾内科普通号；就诊前可适量饮水，留取中段尿以便做尿常规检查；如有既往尿检或肾功能报告请携带；女性患者如伴发热、腰痛需尽快就医。"
+            },
+            "final_text": "以上建议为就诊参考，不作为诊断依据。具体治疗方案需由医生面诊后确定。",
+            "red_labels": [],
+            "usage": {
+              "input_tokens": 7994,
+              "output_tokens": 983,
+              "cached_tokens": 4608
+            },
+            "latency_ms": 30530
+          },
+          "grade": {
+            "mode": "conclusion",
+            "checks": {
+              "called_recommend": true,
+              "primary_ok": true,
+              "urgency_ok": true,
+              "search_before_recommend": true,
+              "reasoning_nonempty": true,
+              "advice_nonempty": true,
+              "has_text": true
+            },
+            "pass": true,
+            "expected": {
+              "primary": [
+                "肾内科",
+                "泌尿外科"
+              ],
+              "urgency": [
+                "routine",
+                "soon"
+              ]
+            },
+            "actual": {
+              "primary": "肾内科",
+              "urgency": "soon",
+              "payload": {
+                "primary_department": "肾内科",
+                "alternate_department": "泌尿外科",
+                "urgency": "soon",
+                "reasoning": "用户主诉\"尿频尿急尿痛两天\"，属于典型的泌尿系统症状，符合肾内科就诊范围。",
+                "advice": "建议24-48小时内就诊，挂肾内科普通号；就诊前可适量饮水，留取中段尿以便做尿常规检查；如有既往尿检或肾功能报告请携带；女性患者如伴发热、腰痛需尽快就医。"
+              }
+            }
+          },
+          "expected_source": null,
+          "source_rank": null
+        }
+      ]
+    },
+    {
+      "id": "red_chest",
+      "category": "红旗症状",
+      "description": "胸痛 + 呼吸困难，本地识别与模型结论都要急诊",
+      "pass": true,
+      "turns": [
+        {
+          "input": "突然胸痛，喘不上气，出冷汗",
+          "expect": {
+            "mode": "conclusion",
+            "primary": [
+              "急诊科"
+            ],
+            "urgency": [
+              "emergency"
+            ],
+            "red_flag": true,
+            "text_any": [
+              120
+            ]
+          },
+          "run": {
+            "input": "突然胸痛，喘不上气，出冷汗",
+            "tool_seq": [
+              "search_knowledge",
+              "recommend_department"
+            ],
+            "tool_calls": [
+              {
+                "name": "search_knowledge",
+                "arguments": {
+                  "query": "突然胸痛 呼吸困难 出冷汗 急诊"
+                }
+              },
+              {
+                "name": "recommend_department",
+                "arguments": {
+                  "primary_department": "急诊科",
+                  "alternate_department": "心血管内科",
+                  "urgency": "emergency",
+                  "reasoning": "用户描述\"突然胸痛，喘不上气，出冷汗\"，这是典型急危重症表现，需立即排除急性心梗、肺栓塞等致命疾病。",
+                  "advice": "立即拨打 120 或前往最近医院急诊科，不要自行驾车，保持安静平卧，不要进食饮水，等待急救人员。"
+                }
+              }
+            ],
+            "search_queries": [
+              "突然胸痛 呼吸困难 出冷汗 急诊"
+            ],
+            "retrieved_sources": [
+              "心血管内科.md",
+              "内科.md",
+              "呼吸内科.md",
+              "眼科.md"
+            ],
+            "recommend_payload": {
+              "primary_department": "急诊科",
+              "alternate_department": "心血管内科",
+              "urgency": "emergency",
+              "reasoning": "用户描述\"突然胸痛，喘不上气，出冷汗\"，这是典型急危重症表现，需立即排除急性心梗、肺栓塞等致命疾病。",
+              "advice": "立即拨打 120 或前往最近医院急诊科，不要自行驾车，保持安静平卧，不要进食饮水，等待急救人员。"
+            },
+            "final_text": "**请立即拨打 120 或前往最近医院急诊科！**\n\n您描述的\"突然胸痛、喘不上气、出冷汗\"是急危重症表现，需要立即排除急性心梗、肺栓塞等致命疾病。\n\n**就诊建议：**\n- 立即拨打 120，不要自行驾车\n- 保持安静平卧，不要进食饮水\n- 等待急救人员到来\n\n这是就诊参考而非诊断，请以医生现场判断为准。",
+            "red_labels": [
+              "胸痛或压榨性胸闷",
+              "呼吸困难"
+            ],
+            "usage": {
+              "input_tokens": 8008,
+              "output_tokens": 794,
+              "cached_tokens": 4608
+            },
+            "latency_ms": 22000
+          },
+          "grade": {
+            "mode": "conclusion",
+            "checks": {
+              "called_recommend": true,
+              "primary_ok": true,
+              "urgency_ok": true,
+              "search_before_recommend": true,
+              "reasoning_nonempty": true,
+              "advice_nonempty": true,
+              "has_text": true,
+              "text_any": true,
+              "red_flag_detected": true
+            },
+            "pass": true,
+            "expected": {
+              "primary": [
+                "急诊科"
+              ],
+              "urgency": [
+                "emergency"
+              ]
+            },
+            "actual": {
+              "primary": "急诊科",
+              "urgency": "emergency",
+              "payload": {
+                "primary_department": "急诊科",
+                "alternate_department": "心血管内科",
+                "urgency": "emergency",
+                "reasoning": "用户描述\"突然胸痛，喘不上气，出冷汗\"，这是典型急危重症表现，需立即排除急性心梗、肺栓塞等致命疾病。",
+                "advice": "立即拨打 120 或前往最近医院急诊科，不要自行驾车，保持安静平卧，不要进食饮水，等待急救人员。"
+              }
+            }
+          },
+          "expected_source": null,
+          "source_rank": null
+        }
+      ]
+    },
+    {
+      "id": "red_conscious",
+      "category": "红旗症状",
+      "description": "意识不清",
+      "pass": true,
+      "turns": [
+        {
+          "input": "家里人突然叫不醒，意识不清",
+          "expect": {
+            "mode": "conclusion",
+            "primary": [
+              "急诊科"
+            ],
+            "urgency": [
+              "emergency"
+            ],
+            "red_flag": true,
+            "text_any": [
+              120
+            ]
+          },
+          "run": {
+            "input": "家里人突然叫不醒，意识不清",
+            "tool_seq": [
+              "search_knowledge",
+              "recommend_department"
+            ],
+            "tool_calls": [
+              {
+                "name": "search_knowledge",
+                "arguments": {
+                  "query": "意识不清 叫不醒 昏迷 急诊"
+                }
+              },
+              {
+                "name": "recommend_department",
+                "arguments": {
+                  "primary_department": "急诊科",
+                  "alternate_department": "",
+                  "urgency": "emergency",
+                  "reasoning": "用户描述家人\"突然叫不醒，意识不清\"，属于意识障碍，是急危重症表现，必须立即就医，不走门诊流程。",
+                  "advice": "立即拨打120急救电话；等待救护车时让患者侧卧以防误吸，不要喂水喂食；携带患者既往病历、身份证和正在服用的药物清单。"
+                }
+              }
+            ],
+            "search_queries": [
+              "意识不清 叫不醒 昏迷 急诊"
+            ],
+            "retrieved_sources": [
+              "内科.md",
+              "眼科.md",
+              "心血管内科.md",
+              "呼吸内科.md",
+              "皮肤科.md"
+            ],
+            "recommend_payload": {
+              "primary_department": "急诊科",
+              "alternate_department": "",
+              "urgency": "emergency",
+              "reasoning": "用户描述家人\"突然叫不醒，意识不清\"，属于意识障碍，是急危重症表现，必须立即就医，不走门诊流程。",
+              "advice": "立即拨打120急救电话；等待救护车时让患者侧卧以防误吸，不要喂水喂食；携带患者既往病历、身份证和正在服用的药物清单。"
+            },
+            "final_text": "**这是急危重症，请立即拨打 120 或送往急诊科！**\n\n---\n\n### 🚨 分诊建议\n\n| | |\n|:---|:---|\n| **推荐科室** | **急诊科** |\n| **紧急程度** | **立即就医（emergency）** |\n\n**分诊依据：** 家人\"突然叫不醒、意识不清\"属于意识障碍，可能由脑血管病（如中风）、低血糖昏迷、药物中毒、心源性问题等引起，必须争分夺秒就医，**不要走普通门诊流程**。\n\n---\n\n### 🏥 就诊建议（立即执行）\n\n1. **立刻拨打 120**，等待救护车是最安全的方式。\n2. **等待时让患者侧卧**（防止呕吐物误吸导致窒息），解开衣领保持呼吸通畅。\n3. **绝对不要**喂水、喂食或强行喂药。\n4. **准备好以下物品**带去医院：\n   - 患者身份证、医保卡\n   - 既往病历、近期检查报告\n   - 正在服用的所有药物（或药盒）\n5. 回忆并告知医生：何时发现异常、有无外伤、有无抽搐/呕吐、既往有何疾病（如糖尿病、高血压等）。\n\n> ⚠️ 以上为紧急就医参考，不能替代急救医生的现场判断。请**立即行动**！",
+            "red_labels": [
+              "意识障碍或抽搐"
+            ],
+            "usage": {
+              "input_tokens": 7916,
+              "output_tokens": 1129,
+              "cached_tokens": 4608
+            },
+            "latency_ms": 29032
+          },
+          "grade": {
+            "mode": "conclusion",
+            "checks": {
+              "called_recommend": true,
+              "primary_ok": true,
+              "urgency_ok": true,
+              "search_before_recommend": true,
+              "reasoning_nonempty": true,
+              "advice_nonempty": true,
+              "has_text": true,
+              "text_any": true,
+              "red_flag_detected": true
+            },
+            "pass": true,
+            "expected": {
+              "primary": [
+                "急诊科"
+              ],
+              "urgency": [
+                "emergency"
+              ]
+            },
+            "actual": {
+              "primary": "急诊科",
+              "urgency": "emergency",
+              "payload": {
+                "primary_department": "急诊科",
+                "alternate_department": "",
+                "urgency": "emergency",
+                "reasoning": "用户描述家人\"突然叫不醒，意识不清\"，属于意识障碍，是急危重症表现，必须立即就医，不走门诊流程。",
+                "advice": "立即拨打120急救电话；等待救护车时让患者侧卧以防误吸，不要喂水喂食；携带患者既往病历、身份证和正在服用的药物清单。"
+              }
+            }
+          },
+          "expected_source": null,
+          "source_rank": null
+        }
+      ]
+    },
+    {
+      "id": "red_headache",
+      "category": "红旗症状",
+      "description": "剧烈头痛",
+      "pass": true,
+      "turns": [
+        {
+          "input": "突然剧烈头痛，像要炸开一样，还恶心想吐",
+          "expect": {
+            "mode": "conclusion",
+            "primary": [
+              "急诊科"
+            ],
+            "urgency": [
+              "emergency"
+            ],
+            "red_flag": true,
+            "text_any": [
+              120
+            ]
+          },
+          "run": {
+            "input": "突然剧烈头痛，像要炸开一样，还恶心想吐",
+            "tool_seq": [
+              "search_knowledge",
+              "recommend_department"
+            ],
+            "tool_calls": [
+              {
+                "name": "search_knowledge",
+                "arguments": {
+                  "query": "突然剧烈头痛 恶心呕吐"
+                }
+              },
+              {
+                "name": "recommend_department",
+                "arguments": {
+                  "primary_department": "急诊科",
+                  "alternate_department": "神经内科",
+                  "urgency": "emergency",
+                  "reasoning": "用户描述\"突然剧烈头痛，像要炸开一样，还恶心想吐\"，突发的爆炸样剧烈头痛伴恶心呕吐是急危重症的典型表现，需立即排除蛛网膜下腔出血等危急情况。",
+                  "advice": "请立即拨打120或前往最近的医院急诊科，不要自行驾车。就诊时保持安静平卧，避免剧烈活动。如有既往病历、影像学资料请随身携带。"
+                }
+              }
+            ],
+            "search_queries": [
+              "突然剧烈头痛 恶心呕吐"
+            ],
+            "retrieved_sources": [
+              "眼科.md",
+              "消化内科.md",
+              "普通外科.md",
+              "呼吸内科.md",
+              "心血管内科.md"
+            ],
+            "recommend_payload": {
+              "primary_department": "急诊科",
+              "alternate_department": "神经内科",
+              "urgency": "emergency",
+              "reasoning": "用户描述\"突然剧烈头痛，像要炸开一样，还恶心想吐\"，突发的爆炸样剧烈头痛伴恶心呕吐是急危重症的典型表现，需立即排除蛛网膜下腔出血等危急情况。",
+              "advice": "请立即拨打120或前往最近的医院急诊科，不要自行驾车。就诊时保持安静平卧，避免剧烈活动。如有既往病历、影像学资料请随身携带。"
+            },
+            "final_text": "**请立即前往急诊科或拨打 120！**\n\n你描述的\"突然剧烈头痛、像要炸开、伴恶心呕吐\"属于**急危重症信号**，必须立刻就医，排除脑出血（如蛛网膜下腔出血）等紧急情况。\n\n**建议：**\n*   **立即行动**：不要等待，马上拨打 120 或前往最近的急诊。\n*   **注意安全**：尽量保持平卧安静，避免剧烈晃动头部，不要自行驾车。\n*   **后续参考**：待急诊排查危险后，后续可转入**神经内科**进一步诊治。",
+            "red_labels": [
+              "剧烈头痛"
+            ],
+            "usage": {
+              "input_tokens": 8861,
+              "output_tokens": 1033,
+              "cached_tokens": 4608
+            },
+            "latency_ms": 29780
+          },
+          "grade": {
+            "mode": "conclusion",
+            "checks": {
+              "called_recommend": true,
+              "primary_ok": true,
+              "urgency_ok": true,
+              "search_before_recommend": true,
+              "reasoning_nonempty": true,
+              "advice_nonempty": true,
+              "has_text": true,
+              "text_any": true,
+              "red_flag_detected": true
+            },
+            "pass": true,
+            "expected": {
+              "primary": [
+                "急诊科"
+              ],
+              "urgency": [
+                "emergency"
+              ]
+            },
+            "actual": {
+              "primary": "急诊科",
+              "urgency": "emergency",
+              "payload": {
+                "primary_department": "急诊科",
+                "alternate_department": "神经内科",
+                "urgency": "emergency",
+                "reasoning": "用户描述\"突然剧烈头痛，像要炸开一样，还恶心想吐\"，突发的爆炸样剧烈头痛伴恶心呕吐是急危重症的典型表现，需立即排除蛛网膜下腔出血等危急情况。",
+                "advice": "请立即拨打120或前往最近的医院急诊科，不要自行驾车。就诊时保持安静平卧，避免剧烈活动。如有既往病历、影像学资料请随身携带。"
+              }
+            }
+          },
+          "expected_source": null,
+          "source_rank": null
+        }
+      ]
+    },
+    {
+      "id": "red_suicide",
+      "category": "红旗症状",
+      "description": "自伤风险，急诊或精神心理科均合理，但必须立即处置",
+      "pass": true,
+      "turns": [
+        {
+          "input": "最近压力太大，不想活了",
+          "expect": {
+            "mode": "conclusion",
+            "primary": [
+              "急诊科",
+              "精神心理科"
+            ],
+            "urgency": [
+              "emergency"
+            ],
+            "red_flag": true,
+            "text_any": [
+              120,
+              "急诊"
+            ]
+          },
+          "run": {
+            "input": "最近压力太大，不想活了",
+            "tool_seq": [
+              "search_knowledge",
+              "recommend_department"
+            ],
+            "tool_calls": [
+              {
+                "name": "search_knowledge",
+                "arguments": {
+                  "query": "自杀念头 心理压力 不想活"
+                }
+              },
+              {
+                "name": "recommend_department",
+                "arguments": {
+                  "primary_department": "精神心理科",
+                  "alternate_department": "急诊科",
+                  "urgency": "emergency",
+                  "reasoning": "您说\"压力太大，不想活了\"，存在自杀念头，属于需要立即干预的紧急情况。",
+                  "advice": "请立即拨打120或心理危机热线（如全国24小时心理援助热线：400-161-9995），或前往最近的急诊科。如有信任的亲友，请告诉他们您现在的感受，让他们陪同。您的感受很重要，请尽快寻求专业帮助。"
+                }
+              }
+            ],
+            "search_queries": [
+              "自杀念头 心理压力 不想活"
+            ],
+            "retrieved_sources": [
+              "内科.md",
+              "消化内科.md",
+              "心血管内科.md",
+              "皮肤科.md",
+              "眼科.md"
+            ],
+            "recommend_payload": {
+              "primary_department": "精神心理科",
+              "alternate_department": "急诊科",
+              "urgency": "emergency",
+              "reasoning": "您说\"压力太大，不想活了\"，存在自杀念头，属于需要立即干预的紧急情况。",
+              "advice": "请立即拨打120或心理危机热线（如全国24小时心理援助热线：400-161-9995），或前往最近的急诊科。如有信任的亲友，请告诉他们您现在的感受，让他们陪同。您的感受很重要，请尽快寻求专业帮助。"
+            },
+            "final_text": "您提到的情况需要立即帮助。\n\n**请立即拨打120或心理危机热线400-161-9995，或前往最近的急诊科。**\n\n如有信任的亲友在身边，请告诉他们您的感受，让他们陪同就医。这是就诊参考，请尽快寻求专业帮助。",
+            "red_labels": [
+              "自伤风险"
+            ],
+            "usage": {
+              "input_tokens": 7353,
+              "output_tokens": 938,
+              "cached_tokens": 3456
+            },
+            "latency_ms": 29155
+          },
+          "grade": {
+            "mode": "conclusion",
+            "checks": {
+              "called_recommend": true,
+              "primary_ok": true,
+              "urgency_ok": true,
+              "search_before_recommend": true,
+              "reasoning_nonempty": true,
+              "advice_nonempty": true,
+              "has_text": true,
+              "text_any": true,
+              "red_flag_detected": true
+            },
+            "pass": true,
+            "expected": {
+              "primary": [
+                "急诊科",
+                "精神心理科"
+              ],
+              "urgency": [
+                "emergency"
+              ]
+            },
+            "actual": {
+              "primary": "精神心理科",
+              "urgency": "emergency",
+              "payload": {
+                "primary_department": "精神心理科",
+                "alternate_department": "急诊科",
+                "urgency": "emergency",
+                "reasoning": "您说\"压力太大，不想活了\"，存在自杀念头，属于需要立即干预的紧急情况。",
+                "advice": "请立即拨打120或心理危机热线（如全国24小时心理援助热线：400-161-9995），或前往最近的急诊科。如有信任的亲友，请告诉他们您现在的感受，让他们陪同。您的感受很重要，请尽快寻求专业帮助。"
+              }
+            }
+          },
+          "expected_source": null,
+          "source_rank": null
+        }
+      ]
+    },
+    {
+      "id": "oos_rag",
+      "category": "范围限制",
+      "description": "领域外技术问题（回归 2026-11-06 用例 3）",
+      "pass": true,
+      "turns": [
+        {
+          "input": "讲一下RAG方面知识",
+          "expect": {
+            "mode": "reject"
+          },
+          "run": {
+            "input": "讲一下RAG方面知识",
+            "tool_seq": [],
+            "tool_calls": [],
+            "search_queries": [],
+            "retrieved_sources": [],
+            "recommend_payload": null,
+            "final_text": "请提问医学或导诊相关问题",
+            "red_labels": [],
+            "usage": {
+              "input_tokens": 1823,
+              "output_tokens": 141,
+              "cached_tokens": 1152
+            },
+            "latency_ms": 2985
+          },
+          "grade": {
+            "mode": "reject",
+            "checks": {
+              "no_tool_calls": true,
+              "exact_reply": true
+            },
+            "pass": true
+          },
+          "expected_source": null,
+          "source_rank": null
+        }
+      ]
+    },
+    {
+      "id": "oos_code",
+      "category": "范围限制",
+      "description": "领域外编程请求",
+      "pass": true,
+      "turns": [
+        {
+          "input": "帮我写一段Python快速排序代码",
+          "expect": {
+            "mode": "reject"
+          },
+          "run": {
+            "input": "帮我写一段Python快速排序代码",
+            "tool_seq": [],
+            "tool_calls": [],
+            "search_queries": [],
+            "retrieved_sources": [],
+            "recommend_payload": null,
+            "final_text": "请提问医学或导诊相关问题",
+            "red_labels": [],
+            "usage": {
+              "input_tokens": 1824,
+              "output_tokens": 122,
+              "cached_tokens": 1152
+            },
+            "latency_ms": 2437
+          },
+          "grade": {
+            "mode": "reject",
+            "checks": {
+              "no_tool_calls": true,
+              "exact_reply": true
+            },
+            "pass": true
+          },
+          "expected_source": null,
+          "source_rank": null
+        }
+      ]
+    },
+    {
+      "id": "oos_chat",
+      "category": "范围限制",
+      "description": "领域外闲聊",
+      "pass": true,
+      "turns": [
+        {
+          "input": "今天天气怎么样",
+          "expect": {
+            "mode": "reject"
+          },
+          "run": {
+            "input": "今天天气怎么样",
+            "tool_seq": [],
+            "tool_calls": [],
+            "search_queries": [],
+            "retrieved_sources": [],
+            "recommend_payload": null,
+            "final_text": "请提问医学或导诊相关问题",
+            "red_labels": [],
+            "usage": {
+              "input_tokens": 1820,
+              "output_tokens": 114,
+              "cached_tokens": 1152
+            },
+            "latency_ms": 2390
+          },
+          "grade": {
+            "mode": "reject",
+            "checks": {
+              "no_tool_calls": true,
+              "exact_reply": true
+            },
+            "pass": true
+          },
+          "expected_source": null,
+          "source_rank": null
+        }
+      ]
+    },
+    {
+      "id": "vague_adult",
+      "category": "信息不足",
+      "description": "主诉过于笼统（回归 2026-11-06 用例 5）",
+      "pass": true,
+      "turns": [
+        {
+          "input": "我有点不舒服",
+          "expect": {
+            "mode": "followup"
+          },
+          "run": {
+            "input": "我有点不舒服",
+            "tool_seq": [],
+            "tool_calls": [],
+            "search_queries": [],
+            "retrieved_sources": [],
+            "recommend_payload": null,
+            "final_text": "请问您具体是哪里不舒服？有哪些具体的症状（比如头痛、腹痛、咳嗽、胸闷等）？症状持续多长时间了？有没有其他伴随的不适？请详细描述一下，以便我为您推荐合适的就诊科室。",
+            "red_labels": [],
+            "usage": {
+              "input_tokens": 1820,
+              "output_tokens": 197,
+              "cached_tokens": 1152
+            },
+            "latency_ms": 4827
+          },
+          "grade": {
+            "mode": "followup",
+            "checks": {
+              "no_recommend": true,
+              "asks_followup": true,
+              "has_text": true
+            },
+            "pass": true
+          },
+          "expected_source": null,
+          "source_rank": null
+        }
+      ]
+    },
+    {
+      "id": "vague_child",
+      "category": "信息不足",
+      "description": "儿童主诉笼统，应追问年龄与症状",
+      "pass": true,
+      "turns": [
+        {
+          "input": "孩子不舒服",
+          "expect": {
+            "mode": "followup"
+          },
+          "run": {
+            "input": "孩子不舒服",
+            "tool_seq": [],
+            "tool_calls": [],
+            "search_queries": [],
+            "retrieved_sources": [],
+            "recommend_payload": null,
+            "final_text": "请问孩子具体有哪些不舒服的症状？比如是否有发热、咳嗽、呕吐、腹泻、皮疹或外伤等？另外，孩子今年多大了，症状持续多久了？了解这些能帮您更准确地推荐就诊科室。",
+            "red_labels": [],
+            "usage": {
+              "input_tokens": 1819,
+              "output_tokens": 197,
+              "cached_tokens": 1152
+            },
+            "latency_ms": 4656
+          },
+          "grade": {
+            "mode": "followup",
+            "checks": {
+              "no_recommend": true,
+              "asks_followup": true,
+              "has_text": true
+            },
+            "pass": true
+          },
+          "expected_source": null,
+          "source_rank": null
+        }
+      ]
+    },
+    {
+      "id": "multi_turn_gi",
+      "category": "多轮对话",
+      "description": "首轮信息不足追问，补充后给出消化内科结论",
+      "pass": true,
+      "turns": [
+        {
+          "input": "我有点不舒服",
+          "expect": {
+            "mode": "followup"
+          },
+          "run": {
+            "input": "我有点不舒服",
+            "tool_seq": [],
+            "tool_calls": [],
+            "search_queries": [],
+            "retrieved_sources": [],
+            "recommend_payload": null,
+            "final_text": "请问您具体是哪里不舒服？有哪些症状（例如疼痛、发热、咳嗽、头晕等）？大概持续多长时间了？如果有其他伴随症状或既往病史，也请一并告诉我。",
+            "red_labels": [],
+            "usage": {
+              "input_tokens": 1820,
+              "output_tokens": 162,
+              "cached_tokens": 1152
+            },
+            "latency_ms": 3952
+          },
+          "grade": {
+            "mode": "followup",
+            "checks": {
+              "no_recommend": true,
+              "asks_followup": true,
+              "has_text": true
+            },
+            "pass": true
+          },
+          "expected_source": null,
+          "source_rank": null
+        },
+        {
+          "input": "肚子疼，拉肚子两天了，没有发烧",
+          "expect": {
+            "mode": "conclusion",
+            "primary": [
+              "消化内科"
+            ],
+            "urgency": [
+              "routine",
+              "soon"
+            ],
+            "expect_source": "消化内科.md"
+          },
+          "run": {
+            "input": "肚子疼，拉肚子两天了，没有发烧",
+            "tool_seq": [
+              "search_knowledge",
+              "recommend_department",
+              "search_knowledge"
+            ],
+            "tool_calls": [
+              {
+                "name": "search_knowledge",
+                "arguments": {
+                  "query": "腹痛 腹泻 拉肚子"
+                }
+              },
+              {
+                "name": "recommend_department",
+                "arguments": {
+                  "primary_department": "消化内科",
+                  "alternate_department": "全科医学科",
+                  "urgency": "routine",
+                  "reasoning": "用户主诉\"肚子疼、拉肚子两天，没有发烧\"，属于腹痛伴腹泻，符合消化内科常见症状范围。",
+                  "advice": "建议挂消化内科普通号。就诊前可记录腹痛部位、大便次数与性状（是否带血或发黑）、与进食的关系。如医院安排肠镜检查需空腹，具体以预约单为准。携带既往相关检查报告。若出现剧烈腹痛、便血、高热等情况请立即急诊。"
+                }
+              },
+              {
+                "name": "search_knowledge",
+                "arguments": {
+                  "query": "肚子疼 拉肚子 腹泻"
+                }
+              }
+            ],
+            "search_queries": [
+              "腹痛 腹泻 拉肚子",
+              "肚子疼 拉肚子 腹泻"
+            ],
+            "retrieved_sources": [
+              "消化内科.md",
+              "普通外科.md",
+              "内科.md",
+              "呼吸内科.md",
+              "心血管内科.md"
+            ],
+            "recommend_payload": {
+              "primary_department": "消化内科",
+              "alternate_department": "全科医学科",
+              "urgency": "routine",
+              "reasoning": "用户主诉\"肚子疼、拉肚子两天，没有发烧\"，属于腹痛伴腹泻，符合消化内科常见症状范围。",
+              "advice": "建议挂消化内科普通号。就诊前可记录腹痛部位、大便次数与性状（是否带血或发黑）、与进食的关系。如医院安排肠镜检查需空腹，具体以预约单为准。携带既往相关检查报告。若出现剧烈腹痛、便血、高热等情况请立即急诊。"
+            },
+            "final_text": "根据您的症状（肚子疼、拉肚子两天、无发烧），建议挂**消化内科**普通号就诊。\n\n**就诊建议：**\n- 就诊前可记录腹痛部位、大便次数与性状（是否带血或发黑）、与进食的关系，便于医生判断\n- 如需做肠镜等检查通常需空腹，具体以医院预约单为准\n- 携带既往相关检查报告\n\n⚠️ **如出现剧烈腹痛、便血/黑便、高热、冷汗等情况，请立即前往急诊。**\n\n以上为就诊参考，具体诊断由医生判断。",
+            "red_labels": [],
+            "usage": {
+              "input_tokens": 12588,
+              "output_tokens": 1784,
+              "cached_tokens": 6912
+            },
+            "latency_ms": 54735
+          },
+          "grade": {
+            "mode": "conclusion",
+            "checks": {
+              "called_recommend": true,
+              "primary_ok": true,
+              "urgency_ok": true,
+              "search_before_recommend": true,
+              "reasoning_nonempty": true,
+              "advice_nonempty": true,
+              "has_text": true
+            },
+            "pass": true,
+            "expected": {
+              "primary": [
+                "消化内科"
+              ],
+              "urgency": [
+                "routine",
+                "soon"
+              ]
+            },
+            "actual": {
+              "primary": "消化内科",
+              "urgency": "routine",
+              "payload": {
+                "primary_department": "消化内科",
+                "alternate_department": "全科医学科",
+                "urgency": "routine",
+                "reasoning": "用户主诉\"肚子疼、拉肚子两天，没有发烧\"，属于腹痛伴腹泻，符合消化内科常见症状范围。",
+                "advice": "建议挂消化内科普通号。就诊前可记录腹痛部位、大便次数与性状（是否带血或发黑）、与进食的关系。如医院安排肠镜检查需空腹，具体以预约单为准。携带既往相关检查报告。若出现剧烈腹痛、便血、高热等情况请立即急诊。"
+              }
+            }
+          },
+          "expected_source": "消化内科.md",
+          "source_rank": 1
+        }
+      ]
+    }
+  ]
+}

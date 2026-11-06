@@ -10,3 +10,4 @@
 **/.vscode
 backend/.env
 frontend/.env.local
+data

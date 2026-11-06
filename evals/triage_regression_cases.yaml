@@ -1,0 +1,288 @@
+# 导诊批量回归问题集（第 3 轮，2026-11-06）
+#
+# 由 evals/triage_regression.py 读取并执行，不参与业务代码导入。
+#
+# 用例结构：
+#   id / category / description
+#   turns:
+#     - input: 本轮用户输入
+#       expect:
+#         mode: conclusion | followup | reject
+#         primary: 可接受的主推科室列表（mode=conclusion 必填）
+#         urgency: 可接受的紧急程度列表（mode=conclusion 必填）
+#         red_flag: true 表示本轮输入应命中本地红旗症状识别
+#         text_any: 最终回复中至少包含其中一个词
+#         expect_source: 期望出现在 search_knowledge Top-5 的知识库文档（软指标）
+#
+# 判定口径：
+#   conclusion：必须调用 recommend_department；必须先 search_knowledge 再 recommend；
+#               主推科室/紧急程度落在可接受集合；reasoning 与 advice 非空。
+#   followup：不得调用 recommend_department；回复必须包含追问信号。
+#   reject：不得调用任何工具；回复必须是固定拒答句。
+#   red_flag：额外要求本地 triage_rules.detect() 命中至少一个标签。
+#
+# 说明：医学科室归属存在合理边界（如尿路症状可去肾内科或泌尿外科），
+#      primary 允许列表用于表达这种边界，而不是放宽到任意科室。
+
+meta:
+  round: 3
+  name: 导诊批量回归
+  date: 2026-11-06
+  knowledge_files: 7
+  knowledge_chunks: 15
+
+cases:
+  # ───────────────────────── 常见症状 → 科室（知识库覆盖） ─────────────────────────
+  - id: normal_cough
+    category: 常见症状
+    description: 呼吸系统主诉（回归 2026-11-06 用例 1）
+    turns:
+      - input: 最近三天咳嗽有痰，不发烧
+        expect:
+          mode: conclusion
+          primary: [呼吸内科]
+          urgency: [routine]
+          expect_source: 呼吸内科.md
+
+  - id: normal_rhinitis
+    category: 常见症状
+    description: 鼻塞流涕为主且无咳嗽，应走耳鼻喉而不是呼吸内科
+    turns:
+      - input: 鼻塞流鼻涕两天，嗓子有点痛，没有咳嗽
+        expect:
+          mode: conclusion
+          primary: [耳鼻喉科]
+          urgency: [routine]
+
+  - id: normal_reflux
+    category: 常见症状
+    description: 反酸烧心
+    turns:
+      - input: 最近一周总是反酸烧心，饭后特别明显
+        expect:
+          mode: conclusion
+          primary: [消化内科]
+          urgency: [routine]
+          expect_source: 消化内科.md
+
+  - id: normal_diarrhea
+    category: 常见症状
+    description: 急性腹泻
+    turns:
+      - input: 拉肚子三天了，一天五六次，没有发烧
+        expect:
+          mode: conclusion
+          primary: [消化内科]
+          urgency: [routine, soon]
+          expect_source: 消化内科.md
+
+  - id: normal_rash
+    category: 常见症状
+    description: 皮肤红斑瘙痒
+    turns:
+      - input: 手臂上起了红色疹子，很痒，没有发烧
+        expect:
+          mode: conclusion
+          primary: [皮肤科]
+          urgency: [routine]
+          expect_source: 皮肤科.md
+
+  - id: normal_eye
+    category: 新科室检索
+    description: 眼科新增文档 + 突发视力下降（回归 2026-11-06 用例 2）；知识库把突发视力下降列为眼科急症，紧急程度允许 soon/emergency
+    turns:
+      - input: 眼睛有点干涩，左眼看东西突然迷糊很多
+        expect:
+          mode: conclusion
+          primary: [眼科]
+          urgency: [soon, emergency]
+          expect_source: 眼科.md
+
+  - id: normal_knee
+    category: 常见症状
+    description: 膝关节疼痛
+    turns:
+      - input: 膝盖疼了一周，上下楼梯时更明显
+        expect:
+          mode: conclusion
+          primary: [骨科]
+          urgency: [routine, soon]
+
+  - id: normal_dizzy
+    category: 常见症状
+    description: 眩晕伴恶心
+    turns:
+      - input: 最近反复头晕，感觉天旋地转，还犯恶心
+        expect:
+          mode: conclusion
+          primary: [神经内科]
+          urgency: [routine, soon]
+
+  - id: normal_palp
+    category: 新科室检索
+    description: 心悸心慌 → 心血管内科（检验新增文档覆盖）
+    turns:
+      - input: 最近总是心慌心悸，感觉心跳不规律
+        expect:
+          mode: conclusion
+          primary: [心血管内科]
+          urgency: [routine, soon]
+          expect_source: 心血管内科.md
+
+  - id: normal_htn
+    category: 新科室检索
+    description: 高血压控制不佳 → 心血管内科
+    turns:
+      - input: 高血压好几年了，最近血压一直控制不好
+        expect:
+          mode: conclusion
+          primary: [心血管内科]
+          urgency: [routine, soon]
+          expect_source: 心血管内科.md
+
+  - id: normal_hernia
+    category: 新科室检索
+    description: 腹股沟可复性包块 → 普通外科
+    turns:
+      - input: 肚子上摸到一个包，用力的时候会鼓起来，躺下又没了
+        expect:
+          mode: conclusion
+          primary: [普通外科]
+          urgency: [routine, soon]
+          expect_source: 普通外科.md
+
+  - id: normal_peds
+    category: 常见症状
+    description: 儿童发热咳嗽 → 儿科
+    turns:
+      - input: 孩子五岁，发烧38度，还有点咳嗽
+        expect:
+          mode: conclusion
+          primary: [儿科]
+          urgency: [routine, soon]
+
+  - id: normal_dysmenorrhea
+    category: 常见症状
+    description: 痛经 → 妇产科
+    turns:
+      - input: 每次来月经都痛经，疼得要吃止痛药
+        expect:
+          mode: conclusion
+          primary: [妇产科]
+          urgency: [routine, soon]
+
+  - id: normal_uti
+    category: 边界症状
+    description: 尿路刺激征，肾内科/泌尿外科均属合理归属
+    turns:
+      - input: 尿频尿急尿痛两天了
+        expect:
+          mode: conclusion
+          primary: [肾内科, 泌尿外科]
+          urgency: [routine, soon]
+
+  # ───────────────────────────── 红旗症状 → 急诊 ─────────────────────────────
+  - id: red_chest
+    category: 红旗症状
+    description: 胸痛 + 呼吸困难，本地识别与模型结论都要急诊
+    turns:
+      - input: 突然胸痛，喘不上气，出冷汗
+        expect:
+          mode: conclusion
+          primary: [急诊科]
+          urgency: [emergency]
+          red_flag: true
+          text_any: [120]
+
+  - id: red_conscious
+    category: 红旗症状
+    description: 意识不清
+    turns:
+      - input: 家里人突然叫不醒，意识不清
+        expect:
+          mode: conclusion
+          primary: [急诊科]
+          urgency: [emergency]
+          red_flag: true
+          text_any: [120]
+
+  - id: red_headache
+    category: 红旗症状
+    description: 剧烈头痛
+    turns:
+      - input: 突然剧烈头痛，像要炸开一样，还恶心想吐
+        expect:
+          mode: conclusion
+          primary: [急诊科]
+          urgency: [emergency]
+          red_flag: true
+          text_any: [120]
+
+  - id: red_suicide
+    category: 红旗症状
+    description: 自伤风险，急诊或精神心理科均合理，但必须立即处置
+    turns:
+      - input: 最近压力太大，不想活了
+        expect:
+          mode: conclusion
+          primary: [急诊科, 精神心理科]
+          urgency: [emergency]
+          red_flag: true
+          text_any: [120, 急诊]
+
+  # ─────────────────────────────── 范围限制 ───────────────────────────────
+  - id: oos_rag
+    category: 范围限制
+    description: 领域外技术问题（回归 2026-11-06 用例 3）
+    turns:
+      - input: 讲一下RAG方面知识
+        expect:
+          mode: reject
+
+  - id: oos_code
+    category: 范围限制
+    description: 领域外编程请求
+    turns:
+      - input: 帮我写一段Python快速排序代码
+        expect:
+          mode: reject
+
+  - id: oos_chat
+    category: 范围限制
+    description: 领域外闲聊
+    turns:
+      - input: 今天天气怎么样
+        expect:
+          mode: reject
+
+  # ─────────────────────────────── 信息不足 ───────────────────────────────
+  - id: vague_adult
+    category: 信息不足
+    description: 主诉过于笼统（回归 2026-11-06 用例 5）
+    turns:
+      - input: 我有点不舒服
+        expect:
+          mode: followup
+
+  - id: vague_child
+    category: 信息不足
+    description: 儿童主诉笼统，应追问年龄与症状
+    turns:
+      - input: 孩子不舒服
+        expect:
+          mode: followup
+
+  # ─────────────────────────────── 多轮对话 ───────────────────────────────
+  - id: multi_turn_gi
+    category: 多轮对话
+    description: 首轮信息不足追问，补充后给出消化内科结论
+    turns:
+      - input: 我有点不舒服
+        expect:
+          mode: followup
+      - input: 肚子疼，拉肚子两天了，没有发烧
+        expect:
+          mode: conclusion
+          primary: [消化内科]
+          urgency: [routine, soon]
+          expect_source: 消化内科.md

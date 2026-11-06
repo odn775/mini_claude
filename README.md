@@ -192,8 +192,11 @@ CLI 与 Web 共享同一套导诊内核（同一份提示词、同一份科室�
 
 ## 医学知识库
 
-科室资料放在 `docs/departments/`（一个科室一个 `.md`），运行时读的是数据目录下的
-`knowledge/`（容器内为 `/data/knowledge`）。仓库自带 3 份示例：呼吸内科 / 消化内科 / 皮肤科。
+科室资料放在 `docs/departments/`（一个科室一个 `.md`），**Web 与 CLI 读的是同一份**：
+容器把该目录 bind mount 到 `/data/knowledge`，CLI 通过 `MINI_CLAUDE_KNOWLEDGE_DIR` 指向它。
+索引（FAISS + chunks.json）落在仓库 `data/faiss_index/`，两端共用，重建一次即可生效
+（`data/` 是运行数据，已在 `.gitignore` 中忽略）。
+仓库自带 7 份示例：呼吸内科 / 消化内科 / 皮肤科 / 内科 / 普通外科 / 眼科 / 心血管内科。
 
 新增科室文档时按以下模板编写，然后重建索引（界面左下「重建索引」或 `POST /api/v1/kb/rebuild`）：
 
@@ -253,6 +256,7 @@ docker cp docs\departments\. mini-claude-backend-1:/data/knowledge/
 | POST | `/sessions/{id}/messages` | 发消息，**SSE** 流式返回 |
 | GET | `/kb/status` | 知识库索引状态 |
 | POST | `/kb/rebuild` | 触发索引重建（后台执行，重复触发回 409） |
+| GET | `/stats/triage` | 导诊统计：`?days=7`（0 为全部），按疾病系统聚合 |
 
 **SSE 事件契约**（`text/event-stream`，每条 `data: {json}`）：
 
@@ -289,7 +293,7 @@ docker cp docs\departments\. mini-claude-backend-1:/data/knowledge/
 标准的 `while` 循环：调用 LLM → 解析 `tool_calls` → 执行工具 → 结果回填 → 继续，最多 20 轮。
 以事件流形式产出 `text_delta / tool_call / tool_result / text / usage`，CLI 与 Web 都只消费事件。
 
-### 8 个内置工具
+### 9 个内置工具
 
 | 工具 | 作用 |
 |---|---|
@@ -299,6 +303,7 @@ docker cp docs\departments\. mini-claude-backend-1:/data/knowledge/
 | `write_file` | 写文件，自动建目录 |
 | `run_bash` | 执行 shell 命令（Web 端受"允许执行命令"开关控制） |
 | `search_knowledge` | 语义检索本地知识库 |
+| `recommend_department` | 按科室白名单输出分诊结论（主推/备选/紧急程度，科室名受白名单校验） |
 | `run_skill` | 加载并执行 skill 指令 |
 | `check_health` | 各模块体检，出错时定位问题模块 |
 
@@ -333,6 +338,18 @@ docker cp docs\departments\. mini-claude-backend-1:/data/knowledge/
 - `/health`（静态体检，零成本）：config / api / mcp / knowledge / tools / skills
 - `/health/ping`（活体探测，消耗少量 token）：net（TCP+TLS）/ llm（最小请求）/ embedding
 - 异常自动诊断：按异常类型归类疑似模块并给下一步建议，全健康时只打一行
+
+### 统计分析
+
+顶栏「统计分析」进入统计页（与导诊页共用左侧栏，不引入 vue-router）：
+
+- 口径：一次 `recommend_department` 成功返回计 1 次访问；追问、范围外拒答只计入总问诊量。
+- 聚合：`core/disease_systems.py` 把 24 个科室归入 11 个疾病系统（每个科室只归一类），
+  系统内按科室再细分，条形图 tooltip 展示科室明细。
+- 时间窗：近 7 天 / 近 30 天 / 全部；按 `sessions.updated_at` 过滤（`messages.created_at`
+  每轮会被整表重写，不能作为轮次时间）。
+- 左侧人体器官图用 ECharts `geo` + 官方 SVG（`frontend/public/organ.svg`，本地化不依赖外网），
+  仅作装饰与悬停高亮，不承载数据。
 
 ## 设计取舍
 
